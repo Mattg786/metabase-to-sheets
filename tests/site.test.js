@@ -34,7 +34,13 @@ test('public pages expose privacy, terms, support, pricing, and accessible metad
   assert.match(read('site/index.html'), /href="\/privacy"/);
   assert.match(read('site/index.html'), /href="\/support"/);
   assert.match(read('site/index.html'), /Marketplace publication pending/);
-  assert.match(read('site/pricing.html'), /Pro: hourly syncs/);
+  assert.match(read('site/pricing.html'), /One saved sync per spreadsheet/);
+  assert.match(read('site/pricing.html'), /Daily syncs are free\. Hourly syncs are Pro/);
+  assert.match(read('site/privacy.html'), /only reads and writes the current spreadsheet/);
+  assert.match(read('site/privacy.html'), /do not store spreadsheet contents on our servers/);
+  assert.match(read('site/privacy.html'), /myaccount\.google\.com\/connections/);
+  assert.match(read('site/privacy.html'), /24 hours/);
+  assert.match(read('site/privacy.html'), /7 days/);
   assert.match(read('site/pricing.html'), /Price TBC/);
 });
 
@@ -51,7 +57,16 @@ test('site design keeps the requested row-and-cell visual system', () => {
 test('Vercel routes keep API functions outside the static rewrites', () => {
   const config = JSON.parse(read('vercel.json'));
   const destinations = config.rewrites.map((item) => item.destination);
+  assert.equal(config.framework, null);
+  assert.equal(config.outputDirectory, 'site');
   assert.equal(destinations.some((destination) => destination.startsWith('/api/')), false);
-  assert.equal(destinations.includes('/site/index.html'), true);
-  assert.equal(destinations.includes('/site/success.html'), true);
+  assert.equal(destinations.every((destination) => !destination.startsWith('/site/')), true);
+  assert.equal(destinations.includes('/index.html'), true);
+  assert.equal(destinations.includes('/success.html'), true);
+  assert.deepEqual(fs.readdirSync(path.join(root, 'api')).sort(), [
+    'licence.js',
+    'payment-link.js',
+    'success-session.js',
+    'webhook.js',
+  ]);
 });

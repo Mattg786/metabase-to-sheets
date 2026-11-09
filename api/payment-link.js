@@ -1,7 +1,7 @@
 'use strict';
 
-const { isPaymentLinkUrl } = require('./_lib/checkout');
-const { methodNotAllowed, sendJson } = require('./_lib/http');
+const { isPaymentLinkUrl } = require('../server/_lib/checkout');
+const { methodNotAllowed, sendJson } = require('../server/_lib/http');
 
 module.exports = function paymentLink(req, res) {
   if (req.method !== 'GET') return methodNotAllowed(res, 'GET');

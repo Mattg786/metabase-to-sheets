@@ -17,12 +17,50 @@ function methodNotAllowed(res, allowed) {
   sendJson(res, 405, { active: false, plan: 'free', reason: 'method not allowed' });
 }
 
+function requestHeader(req, name) {
+  const headers = req && req.headers;
+  if (headers && typeof headers.get === 'function') return headers.get(name) || '';
+  if (!headers) return '';
+  return headers[name] || headers[name.toLowerCase()] || '';
+}
+
 function bodyText(req, maxBytes) {
   const bodyLimit = maxBytes || MAX_JSON_BYTES;
   if (Buffer.isBuffer(req.body)) return Promise.resolve(req.body.toString('utf8'));
   if (typeof req.body === 'string') return Promise.resolve(req.body);
   if (req.body && typeof req.body === 'object') return Promise.resolve(JSON.stringify(req.body));
   if (!req || typeof req.on !== 'function') return Promise.resolve('');
+
+  return new Promise((resolve, reject) => {
+    const chunks = [];
+    let size = 0;
+    req.on('data', (chunk) => {
+      const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(String(chunk));
+      size += buffer.length;
+      if (size > bodyLimit) {
+        reject(new Error('request body too large'));
+        if (typeof req.destroy === 'function') req.destroy();
+        return;
+      }
+      chunks.push(buffer);
+    });
+    req.on('end', () => resolve(Buffer.concat(chunks).toString('utf8')));
+    req.on('error', reject);
+  });
+}
+
+function rawBodyText(req, maxBytes) {
+  const bodyLimit = maxBytes || MAX_JSON_BYTES;
+  if (req && typeof req.text === 'function') {
+    return req.text().then((raw) => {
+      if (typeof raw !== 'string') throw new Error('raw request body unavailable');
+      if (Buffer.byteLength(raw, 'utf8') > bodyLimit) throw new Error('request body too large');
+      return raw;
+    });
+  }
+  if (!req || typeof req.on !== 'function') {
+    return Promise.reject(new Error('raw request body unavailable'));
+  }
 
   return new Promise((resolve, reject) => {
     const chunks = [];
@@ -51,4 +89,4 @@ async function readJson(req) {
   return parsed;
 }
 
-module.exports = { MAX_JSON_BYTES, sendJson, methodNotAllowed, bodyText, readJson };
+module.exports = { MAX_JSON_BYTES, sendJson, methodNotAllowed, requestHeader, bodyText, rawBodyText, readJson };

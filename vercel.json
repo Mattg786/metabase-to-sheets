@@ -1,20 +1,22 @@
 {
   "version": 2,
+  "framework": null,
   "buildCommand": "npm run build:site",
+  "outputDirectory": "site",
   "cleanUrls": true,
   "rewrites": [
-    { "source": "/", "destination": "/site/index.html" },
-    { "source": "/privacy", "destination": "/site/privacy.html" },
-    { "source": "/terms", "destination": "/site/terms.html" },
-    { "source": "/support", "destination": "/site/support.html" },
-    { "source": "/pricing", "destination": "/site/pricing.html" },
-    { "source": "/success", "destination": "/site/success.html" },
-    { "source": "/styles.css", "destination": "/site/styles.css" },
-    { "source": "/site-config.js", "destination": "/site/site-config.js" },
-    { "source": "/site.js", "destination": "/site/site.js" },
-    { "source": "/assets/(.*)", "destination": "/site/assets/$1" },
-    { "source": "/sitemap.xml", "destination": "/site/sitemap.xml" },
-    { "source": "/robots.txt", "destination": "/site/robots.txt" }
+    { "source": "/", "destination": "/index.html" },
+    { "source": "/privacy", "destination": "/privacy.html" },
+    { "source": "/terms", "destination": "/terms.html" },
+    { "source": "/support", "destination": "/support.html" },
+    { "source": "/pricing", "destination": "/pricing.html" },
+    { "source": "/success", "destination": "/success.html" },
+    { "source": "/styles.css", "destination": "/styles.css" },
+    { "source": "/site-config.js", "destination": "/site-config.js" },
+    { "source": "/site.js", "destination": "/site.js" },
+    { "source": "/assets/(.*)", "destination": "/assets/$1" },
+    { "source": "/sitemap.xml", "destination": "/sitemap.xml" },
+    { "source": "/robots.txt", "destination": "/robots.txt" }
   ],
   "headers": [
     {

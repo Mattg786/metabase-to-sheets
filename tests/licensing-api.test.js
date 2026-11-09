@@ -7,9 +7,9 @@ const {
   generateLicenceKey,
   isValidLicenceKey,
   subscriptionIdFromLicenceKey,
-} = require('../api/_lib/licensing');
-const { isPaymentLinkUrl, verifyCheckoutSession, fulfilCheckoutSession } = require('../api/_lib/checkout');
-const { handleWebhookEvent } = require('../api/_lib/webhook');
+} = require('../server/_lib/licensing');
+const { isPaymentLinkUrl, verifyCheckoutSession, fulfilCheckoutSession } = require('../server/_lib/checkout');
+const { handleWebhookEvent } = require('../server/_lib/webhook');
 
 const env = {
   STRIPE_SECRET_KEY: 'sk_test_placeholder',

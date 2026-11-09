@@ -25,7 +25,7 @@ String values are written as plain text so Sheets does not treat leading `=`, `+
 
 The sidebar shows the last sync time in UTC, the row count, and the last error. A successful sync clears the error. A failed sync leaves the previous cells in place.
 
-The schedule runs as the Google account that saved it, and it uses that account's API key. The free plan permits one saved sync configuration, manual sync, and Daily. A verified Pro licence permits Hourly and Every 6 hours. Apps Script chooses the exact minute. A scheduled run checks the licence again so a stale trigger cannot bypass the plan.
+The schedule runs as the Google account that saved it, and it uses that account's API key. The free plan permits one saved sync per spreadsheet, manual sync, and Daily. A verified Pro licence permits Hourly and Every 6 hours. Apps Script chooses the exact minute. A scheduled run checks the licence again so a stale trigger cannot bypass the plan.
 
 Very large results are refused before the sheet is changed: more than 100,000 rows, or more than 2,000 columns. A sync is also refused when growing the sheet would push the spreadsheet past Google Sheets' cell limit.
 
@@ -68,7 +68,8 @@ src/appsscript.json    Apps Script manifest
 src/Lib.js             Validation, Metabase calls, sheet writing, schedule
 src/Main.js            Menu and functions called by the sidebar
 src/Sidebar.html       Sidebar UI
-api/                   Vercel Node serverless licence, payment, and webhook endpoints
+api/                   Vercel Node serverless licence, payment, and webhook entrypoints
+server/_lib/           Shared Node request, Stripe, licence, and webhook utilities
 site/                  Static launch pages, styles, sitemap, and OG asset
 vercel.json            Static route and serverless function configuration
 docs/SITE-DESIGN.md    Launch site design decisions
@@ -92,7 +93,7 @@ The tests mock Metabase and Stripe responses, including invalid and overlong lic
 
 ## Website deployment shape
 
-The Vercel project root is this repository. `vercel.json` maps `/`, `/privacy`, `/terms`, `/support`, `/pricing`, and `/success` to files in `site/`, while `/api/*` remains serverless. `npm run build:site` checks the required static files. Set the approved public base URL in `site/site-config.js` before another host is used. Do not deploy the paid product to the current Vercel Hobby team. See [docs/PAYMENTS.md](docs/PAYMENTS.md).
+The Vercel project root is this repository. `vercel.json` explicitly selects the Other framework, sets `site` as the output directory, and rewrites `/`, `/privacy`, `/terms`, `/support`, `/pricing`, and `/success` to files at that output root. Only `site/` is served statically. Root `api/*.js` files remain Node functions, and shared server utilities live under `server/` outside the function-entrypoint directory. `npm run build:site` checks the required static files. Set the approved public base URL in `site/site-config.js` before another host is used. Do not deploy the paid product to the current Vercel Hobby team. See [docs/PAYMENTS.md](docs/PAYMENTS.md).
 
 ## Test install
 

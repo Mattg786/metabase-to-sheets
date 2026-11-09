@@ -1,9 +1,9 @@
 'use strict';
 
-const { methodNotAllowed, readJson, sendJson } = require('./_lib/http');
-const { getStripeClient } = require('./_lib/stripe');
-const { verifyCheckoutSession } = require('./_lib/checkout');
-const { LICENCE_METADATA_KEY, isValidLicenceKey } = require('./_lib/licensing');
+const { methodNotAllowed, readJson, sendJson } = require('../server/_lib/http');
+const { getStripeClient } = require('../server/_lib/stripe');
+const { verifyCheckoutSession } = require('../server/_lib/checkout');
+const { LICENCE_METADATA_KEY, isValidLicenceKey } = require('../server/_lib/licensing');
 
 module.exports = async function successSession(req, res) {
   if (req.method !== 'POST') return methodNotAllowed(res, 'POST');

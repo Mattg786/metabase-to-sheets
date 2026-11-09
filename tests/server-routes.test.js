@@ -8,6 +8,7 @@ const licenceRoute = require('../api/licence');
 const paymentLinkRoute = require('../api/payment-link');
 const successRoute = require('../api/success-session');
 const webhookRoute = require('../api/webhook');
+const { rawBodyText } = require('../server/_lib/http');
 
 function response() {
   let finish;
@@ -66,9 +67,40 @@ test('payment link endpoint is configuration-only and exposes no secret', async 
   });
 });
 
-test('webhook uses raw request bytes and Vercel body-parser opt-out', async () => {
-  assert.deepEqual(webhookRoute.config, { api: { bodyParser: false } });
-  const payload = JSON.stringify({ id: 'evt_test', type: 'customer.updated', data: { object: {} } });
+test('raw body reading never touches Vercel lazy req.body and preserves whitespace', async () => {
+  const payload = '{\n  "id": "evt_test",\n  "type": "customer.updated",\n  "data": { "object": {} }\n}\n';
+  let bodyAccessed = false;
+  const request = new EventEmitter();
+  Object.defineProperty(request, 'body', {
+    get() {
+      bodyAccessed = true;
+      throw new Error('lazy req.body must not be accessed');
+    },
+  });
+  const rawPromise = rawBodyText(request, 512 * 1024);
+  request.emit('data', Buffer.from(payload, 'utf8'));
+  request.emit('end');
+  assert.equal(await rawPromise, payload);
+  assert.equal(bodyAccessed, false);
+});
+
+test('raw body reading supports the Vercel Web Request text path', async () => {
+  const payload = '{\n  "signed": true\n}\n';
+  const request = {
+    async text() {
+      return payload;
+    },
+  };
+  Object.defineProperty(request, 'body', {
+    get() {
+      throw new Error('lazy req.body must not be accessed');
+    },
+  });
+  assert.equal(await rawBodyText(request), payload);
+});
+
+test('webhook verifies a whitespace-containing signed stream without parsed req.body', async () => {
+  const payload = '{\n  "id": "evt_test",\n  "type": "customer.updated",\n  "data": { "object": {} }\n}\n';
   const secret = 'whsec_test_only';
   const signature = Stripe.webhooks.generateTestHeaderString({ payload, secret });
   await withEnv({
@@ -79,6 +111,11 @@ test('webhook uses raw request bytes and Vercel body-parser opt-out', async () =
     const req = new EventEmitter();
     req.method = 'POST';
     req.headers = { 'stripe-signature': signature };
+    Object.defineProperty(req, 'body', {
+      get() {
+        throw new Error('lazy req.body must not be accessed');
+      },
+    });
     const result = response();
     const running = webhookRoute(req, result.res);
     req.emit('data', Buffer.from(payload, 'utf8'));

@@ -1,9 +1,9 @@
 'use strict';
 
 const Stripe = require('stripe');
-const { bodyText, methodNotAllowed, sendJson } = require('./_lib/http');
-const { getStripeClient } = require('./_lib/stripe');
-const { handleWebhookEvent } = require('./_lib/webhook');
+const { methodNotAllowed, requestHeader, rawBodyText, sendJson } = require('../server/_lib/http');
+const { getStripeClient } = require('../server/_lib/stripe');
+const { handleWebhookEvent } = require('../server/_lib/webhook');
 
 async function webhook(req, res) {
   if (req.method !== 'POST') return methodNotAllowed(res, 'POST');
@@ -11,12 +11,12 @@ async function webhook(req, res) {
     return sendJson(res, 503, { received: false, reason: 'payments not configured' });
   }
 
-  const signature = req.headers && (req.headers['stripe-signature'] || req.headers['Stripe-Signature']);
+  const signature = requestHeader(req, 'stripe-signature');
   if (!signature) return sendJson(res, 400, { received: false, reason: 'missing webhook signature' });
 
   let event;
   try {
-    const rawBody = await bodyText(req, 512 * 1024);
+    const rawBody = await rawBodyText(req, 512 * 1024);
     event = Stripe.webhooks.constructEvent(rawBody, signature, process.env.STRIPE_WEBHOOK_SECRET);
   } catch (error) {
     return sendJson(res, 400, { received: false, reason: 'invalid webhook signature' });
@@ -34,5 +34,4 @@ async function webhook(req, res) {
   }
 }
 
-webhook.config = { api: { bodyParser: false } };
 module.exports = webhook;

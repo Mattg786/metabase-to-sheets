@@ -1,8 +1,8 @@
 'use strict';
 
-const { methodNotAllowed, readJson, sendJson } = require('./_lib/http');
-const { getStripeClient } = require('./_lib/stripe');
-const { checkLicence, MAX_LICENCE_LENGTH } = require('./_lib/licensing');
+const { methodNotAllowed, readJson, sendJson } = require('../server/_lib/http');
+const { getStripeClient } = require('../server/_lib/stripe');
+const { checkLicence, MAX_LICENCE_LENGTH } = require('../server/_lib/licensing');
 
 module.exports = async function licence(req, res) {
   if (req.method !== 'POST') return methodNotAllowed(res, 'POST');
