@@ -12,6 +12,10 @@ var MAX_RESULT_ROWS = 100000;
 var MAX_RESULT_COLUMNS = 2000;
 var WRITE_CHUNK_ROWS = 1000;
 var CARD_LIST_LIMIT = 500;
+// Conservative guard under the official Google Sheets spreadsheet cell ceiling.
+// Official source (checked 2026-11-09): https://support.google.com/drive/answer/37603
+// lists up to 20 million cells for Sheets created in or converted to Google Sheets.
+var MAX_SPREADSHEET_CELLS = 10000000;
 
 var DOCUMENT_KEYS = {
   baseUrl: 'METABASE_BASE_URL',
@@ -20,7 +24,8 @@ var DOCUMENT_KEYS = {
   schedule: 'METABASE_SCHEDULE',
   lastSyncAt: 'METABASE_LAST_SYNC_AT',
   lastError: 'METABASE_LAST_ERROR',
-  lastRowCount: 'METABASE_LAST_ROW_COUNT'
+  lastRowCount: 'METABASE_LAST_ROW_COUNT',
+  lastRange: 'METABASE_LAST_RANGE'
 };
 
 var SCHEDULE_OPTIONS = [
@@ -302,6 +307,16 @@ function normaliseCell(value) {
   }
 }
 
+/**
+ * Quote integer literals with 16 or more digits before JSON.parse.
+ * JSON numbers above Number.MAX_SAFE_INTEGER lose precision in V8.
+ * Quoting keeps the exact digit string as text for the sheet.
+ */
+function protectLargeIntegersInJson(raw) {
+  if (typeof raw !== 'string') return raw;
+  return raw.replace(/([\[:,]\s*)(-?\d{16,})(?=\s*[,\}\]])/g, '$1"$2"');
+}
+
 function parseJsonExport(payload) {
   var data = payload;
   if (typeof payload === 'string') {
@@ -423,7 +438,11 @@ function interpretQueryResponse(response, apiKey) {
 
   var parsed;
   try {
-    parsed = typeof response.body === 'string' ? JSON.parse(response.body) : response.body;
+    if (typeof response.body === 'string') {
+      parsed = JSON.parse(protectLargeIntegersInJson(response.body));
+    } else {
+      parsed = response.body;
+    }
   } catch (error) {
     return failure('Metabase returned a response that was not JSON.');
   }
@@ -499,22 +518,146 @@ function ensureSheetSize(sheet, rows, columns) {
   }
 }
 
-function writeValuesInChunks(sheet, values) {
-  var width = values[0].length;
-  for (var start = 0; start < values.length; start += WRITE_CHUNK_ROWS) {
-    var slice = values.slice(start, start + WRITE_CHUNK_ROWS);
-    sheet.getRange(start + 1, 1, slice.length, width).setValues(slice);
+/**
+ * Sheets parses leading = + - @ as formulas or signed numbers unless the cell
+ * is already text. Prefix those strings with an apostrophe so they stay literal.
+ */
+function needsLiteralPrefix(value) {
+  if (typeof value !== 'string' || !value) return false;
+  var ch = value.charAt(0);
+  return ch === '=' || ch === '+' || ch === '-' || ch === '@';
+}
+
+function toLiteralSheetValue(value) {
+  return needsLiteralPrefix(value) ? "'" + value : value;
+}
+
+function columnIsAllText(values, columnIndex) {
+  for (var row = 0; row < values.length; row++) {
+    var value = values[row][columnIndex];
+    if (value === '' || value == null) continue;
+    if (typeof value !== 'string') return false;
+  }
+  return true;
+}
+
+function setCellTextFormat(sheet, row, column) {
+  if (typeof sheet.getRange !== 'function') return;
+  var range = sheet.getRange(row, column, 1, 1);
+  if (typeof range.setNumberFormat === 'function') {
+    range.setNumberFormat('@');
   }
 }
 
 /**
- * Replace the sheet contents with the table.
- * A smaller result clears leftover rows and columns from the previous sync.
- * Headers come only from the result. No extra columns are added.
+ * Apply "@" text format BEFORE writing values.
+ * All-string columns are formatted as a column. Mixed columns format each
+ * string cell so numbers stay numbers and strings stay literal.
  */
+function applyTextNumberFormats(sheet, values) {
+  if (!values.length || typeof sheet.getRange !== 'function') return;
+  var width = values[0].length;
+  var height = values.length;
+  for (var column = 0; column < width; column++) {
+    if (columnIsAllText(values, column)) {
+      var range = sheet.getRange(1, column + 1, height, 1);
+      if (typeof range.setNumberFormat === 'function') {
+        range.setNumberFormat('@');
+      }
+      continue;
+    }
+    for (var row = 0; row < height; row++) {
+      var value = values[row][column];
+      if (typeof value !== 'string' || value === '') continue;
+      setCellTextFormat(sheet, row + 1, column + 1);
+    }
+  }
+}
+
+function prepareChunkForSheet(slice) {
+  var prepared = [];
+  for (var row = 0; row < slice.length; row++) {
+    var line = [];
+    for (var column = 0; column < slice[row].length; column++) {
+      line.push(toLiteralSheetValue(slice[row][column]));
+    }
+    prepared.push(line);
+  }
+  return prepared;
+}
+
+function writeValuesInChunks(sheet, values) {
+  // Format first. setValues after that still parses =/+/-/@ unless escaped.
+  applyTextNumberFormats(sheet, values);
+  var width = values[0].length;
+  for (var start = 0; start < values.length; start += WRITE_CHUNK_ROWS) {
+    var slice = values.slice(start, start + WRITE_CHUNK_ROWS);
+    var prepared = prepareChunkForSheet(slice);
+    var range = sheet.getRange(start + 1, 1, prepared.length, width);
+    range.setValues(prepared);
+  }
+}
+
+function countSpreadsheetCells(spreadsheet) {
+  if (!spreadsheet || typeof spreadsheet.getSheets !== 'function') return 0;
+  var sheets = spreadsheet.getSheets();
+  var total = 0;
+  for (var i = 0; i < sheets.length; i++) {
+    total += sheets[i].getMaxRows() * sheets[i].getMaxColumns();
+  }
+  return total;
+}
+
+function assertWithinCellBudget(spreadsheet, sheet, neededRows, neededCols) {
+  if (!spreadsheet || !sheet) return;
+  var currentRows = sheet.getMaxRows();
+  var currentCols = sheet.getMaxColumns();
+  var currentSheetCells = currentRows * currentCols;
+  var nextRows = Math.max(currentRows, neededRows || 1);
+  var nextCols = Math.max(currentCols, neededCols || 1);
+  var nextSheetCells = nextRows * nextCols;
+  var others = countSpreadsheetCells(spreadsheet) - currentSheetCells;
+  if (others + nextSheetCells > MAX_SPREADSHEET_CELLS) {
+    throw new Error('This sync would push the spreadsheet past Google Sheets\' cell limit.');
+  }
+}
+
+function sheetIdOf(sheet) {
+  if (sheet && typeof sheet.getSheetId === 'function') return sheet.getSheetId();
+  return 0;
+}
+
+function readBackupBlock(sheet, previousRange) {
+  if (!previousRange) return null;
+  if (sheetIdOf(sheet) !== previousRange.sheetId) return null;
+  if (!previousRange.rows || !previousRange.cols) return null;
+  var range = sheet.getRange(1, 1, previousRange.rows, previousRange.cols);
+  return {
+    rows: previousRange.rows,
+    cols: previousRange.cols,
+    values: range.getValues()
+  };
+}
+
+function clearBackupBlock(sheet, backup) {
+  if (!backup) return;
+  sheet.getRange(1, 1, backup.rows, backup.cols).clearContent();
+}
+
+/**
+ * Write the table starting at A1.
+ * Clears only the previously synced block for this configuration, not the whole data range.
+ * Headers come only from the result. No extra columns are added.
+ * String cells are formatted as text before writing, and strings that start
+ * with = + - or @ are apostrophe-prefixed so Sheets keeps them literal.
+ * Empty results clear only the previously synced block, never getDataRange.
+ */
+
 function writeTable(sheet, table, limits) {
   var maxRows = limits && limits.maxRows ? limits.maxRows : MAX_RESULT_ROWS;
   var maxColumns = limits && limits.maxColumns ? limits.maxColumns : MAX_RESULT_COLUMNS;
+  var previousRange = limits && limits.previousRange ? limits.previousRange : null;
+  var spreadsheet = limits && limits.spreadsheet ? limits.spreadsheet : null;
   var rowCount = table && table.rows ? table.rows.length : 0;
   var columnCount = table && table.headers ? table.headers.length : 0;
   if (rowCount > maxRows) {
@@ -525,30 +668,36 @@ function writeTable(sheet, table, limits) {
   }
 
   var values = tableToValues(table);
-  var existingRange = sheet.getDataRange();
-  var existingValues = existingRange.getValues();
-  var existingRows = existingValues.length;
-  var existingCols = existingValues.length ? existingValues[0].length : 0;
-  var hadExisting = rangeHasContent(existingValues);
-
   if (values.length) {
+    assertWithinCellBudget(spreadsheet, sheet, values.length, values[0].length);
     ensureSheetSize(sheet, values.length, values[0].length);
   }
 
+  var backup = readBackupBlock(sheet, previousRange);
+
   try {
-    if (hadExisting) existingRange.clearContent();
+    clearBackupBlock(sheet, backup);
     if (!values.length) {
-      return { rowsWritten: 0, columnsWritten: 0 };
+      return {
+        rowsWritten: 0,
+        columnsWritten: 0,
+        range: { sheetId: sheetIdOf(sheet), rows: 0, cols: 0 }
+      };
     }
     writeValuesInChunks(sheet, values);
     return {
       rowsWritten: values.length - 1,
-      columnsWritten: values[0].length
+      columnsWritten: values[0].length,
+      range: {
+        sheetId: sheetIdOf(sheet),
+        rows: values.length,
+        cols: values[0].length
+      }
     };
   } catch (error) {
-    if (hadExisting) {
+    if (backup) {
       try {
-        sheet.getRange(1, 1, existingRows, existingCols).setValues(existingValues);
+        sheet.getRange(1, 1, backup.rows, backup.cols).setValues(backup.values);
       } catch (restoreError) {
         // Keep the original write error. The previous values could not be restored.
       }
@@ -627,6 +776,31 @@ function createStore(userProperties, documentProperties) {
       } else if (Object.prototype.hasOwnProperty.call(status, 'lastError')) {
         documentProperties.deleteProperty(DOCUMENT_KEYS.lastError);
       }
+    },
+    getLastRange: function () {
+      var raw = read(DOCUMENT_KEYS.lastRange);
+      if (!raw) return null;
+      try {
+        var parsed = JSON.parse(raw);
+        if (!parsed || typeof parsed.sheetId !== 'number') return null;
+        var rows = Number(parsed.rows);
+        var cols = Number(parsed.cols);
+        if (!Number.isInteger(rows) || !Number.isInteger(cols) || rows < 0 || cols < 0) return null;
+        return { sheetId: parsed.sheetId, rows: rows, cols: cols };
+      } catch (error) {
+        return null;
+      }
+    },
+    setLastRange: function (range) {
+      if (!range || (!range.rows && !range.cols)) {
+        documentProperties.deleteProperty(DOCUMENT_KEYS.lastRange);
+        return;
+      }
+      documentProperties.setProperty(DOCUMENT_KEYS.lastRange, JSON.stringify({
+        sheetId: range.sheetId,
+        rows: range.rows,
+        cols: range.cols
+      }));
     }
   };
 }
@@ -763,7 +937,11 @@ function callMetabase(services, request) {
 
 function safeWriteError(error, apiKey) {
   var message = scrubSecrets(error && error.message ? error.message : '', [apiKey]);
-  if (message.indexOf('too many rows') !== -1 || message.indexOf('too many columns') !== -1) {
+  if (
+    message.indexOf('too many rows') !== -1 ||
+    message.indexOf('too many columns') !== -1 ||
+    message.indexOf('cell limit') !== -1
+  ) {
     return message;
   }
   return 'The result could not be written to the sheet.';
@@ -780,11 +958,18 @@ function executeSync(settings, sheet, apiKey, services) {
 
   var written;
   try {
-    written = writeTable(sheet, interpreted.table);
+    written = writeTable(sheet, interpreted.table, {
+      previousRange: services.store.getLastRange ? services.store.getLastRange() : null,
+      spreadsheet: services.spreadsheet
+    });
   } catch (error) {
     var writeError = safeWriteError(error, apiKey);
     services.store.setStatus({ lastError: writeError });
     return failure(writeError);
+  }
+
+  if (services.store.setLastRange) {
+    services.store.setLastRange(written.range);
   }
 
   var syncedAt = currentIso(services);
@@ -804,7 +989,7 @@ function executeSync(settings, sheet, apiKey, services) {
 function syncMessage(outcome) {
   if (!outcome.ok) return '';
   if (!outcome.rowsWritten && !outcome.columnsWritten) {
-    return 'The question returned no rows. The sheet was cleared.';
+    return 'The question returned no rows. The previous synced cells were cleared.';
   }
   var noun = outcome.rowsWritten === 1 ? 'row' : 'rows';
   return 'Synced ' + outcome.rowsWritten + ' ' + noun + '.';
@@ -841,6 +1026,10 @@ function saveSettingsForUser(form, services) {
   return withState(services, { ok: true, message: 'Saved.' });
 }
 
+function isApiKeyRejectedError(message) {
+  return /\(401\)/.test(String(message || ''));
+}
+
 function syncNowForUser(form, services) {
   var validated = validateSettingsForm(form, services.spreadsheet);
   if (!validated.ok) return withState(services, validated);
@@ -855,7 +1044,9 @@ function syncNowForUser(form, services) {
   var outcome = executeSync(validated.settings, validated.sheet, key.apiKey, services);
   if (outcome.ok && key.replace) {
     services.store.setApiKey(key.apiKey);
-  } else if (!outcome.ok && key.replace) {
+  } else if (!outcome.ok && key.replace && isApiKeyRejectedError(outcome.error)) {
+    // Only when Metabase rejected a newly typed key (401). A 404 for a missing
+    // question must not claim the previous key is still saved.
     outcome = failure(outcome.error + (hadStoredKey
       ? ' The previous API key is still saved.'
       : ' The API key was not saved.'));
@@ -976,6 +1167,7 @@ if (typeof module !== 'undefined' && module.exports) {
     SCHEDULE_OPTIONS: SCHEDULE_OPTIONS,
     MAX_RESULT_ROWS: MAX_RESULT_ROWS,
     MAX_RESULT_COLUMNS: MAX_RESULT_COLUMNS,
+    MAX_SPREADSHEET_CELLS: MAX_SPREADSHEET_CELLS,
     parseHttpsSiteUrl: parseHttpsSiteUrl,
     resolvePathSegments: resolvePathSegments,
     validateBaseUrl: validateBaseUrl,
@@ -985,10 +1177,14 @@ if (typeof module !== 'undefined' && module.exports) {
     scrubSecrets: scrubSecrets,
     buildCardQueryRequest: buildCardQueryRequest,
     buildCardListRequest: buildCardListRequest,
+    protectLargeIntegersInJson: protectLargeIntegersInJson,
     parseJsonExport: parseJsonExport,
     parseCardList: parseCardList,
     interpretQueryResponse: interpretQueryResponse,
     interpretListResponse: interpretListResponse,
+    needsLiteralPrefix: needsLiteralPrefix,
+    toLiteralSheetValue: toLiteralSheetValue,
+    isApiKeyRejectedError: isApiKeyRejectedError,
     writeTable: writeTable,
     formatSyncTime: formatSyncTime,
     buildStatusLabel: buildStatusLabel,

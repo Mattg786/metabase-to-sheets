@@ -19,13 +19,20 @@ Each sync calls `POST {site}/api/card/{id}/query/json` with the header `X-API-Ke
 
 The request asks Metabase for unformatted values (`format_rows: false`) and for the underlying rows rather than a pivot layout (`pivot_results: false`). Documented export formats are `csv`, `json`, `xlsx`, and `api`. This add-on uses `json`. Official reference: [Metabase API](https://www.metabase.com/docs/latest/api).
 
-If the new result has fewer rows or columns than the previous sync, the leftover cells on that sheet are cleared. An empty JSON list (`[]`) clears the sheet. The JSON export does not include column names when there are no rows, so the add-on does not invent headers for an empty result.
+Each sync clears only the previously synced block for this configuration, then writes the new result starting at A1. Cells you typed outside that block are left alone. An empty JSON list (`[]`) clears the previous synced block and writes nothing. The JSON export does not include column names when there are no rows, so the add-on does not invent headers for an empty result.
+
+String values are written as plain text so Sheets does not treat leading `=`, `+`, `-`, or `@` as formulas, and so values such as `00123` keep their leading zeros. Numbers stay numbers.
 
 The sidebar shows the last sync time in UTC, the row count, and the last error. A successful sync clears the error. A failed sync leaves the previous cells in place.
 
 The schedule runs as the Google account that saved it, and it uses that account's API key. Hourly uses a trigger every hour. Every 6 hours uses a trigger every 6 hours. Daily uses a trigger every day. Apps Script chooses the exact minute.
 
-Very large results are refused before the sheet is changed: more than 100,000 rows, or more than 2,000 columns.
+Very large results are refused before the sheet is changed: more than 100,000 rows, or more than 2,000 columns. A sync is also refused when growing the sheet would push the spreadsheet past Google Sheets' cell limit.
+
+## Known limitations
+
+- The Metabase JSON export uses one object per row. Duplicate column names collapse to a single key in that format, so the add-on cannot keep two columns that share a name. Switching to CSV would keep duplicate headers, but this add-on stays on the JSON export to keep the same high row limit and typed values. Prefer distinct column aliases in the Metabase question.
+- Integers with 16 or more digits are kept as text so they are not rounded by JavaScript number parsing. Shorter integers stay numbers.
 
 ## Where the API key is stored
 

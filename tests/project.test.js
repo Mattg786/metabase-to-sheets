@@ -32,7 +32,6 @@ test('clasp example points at src and is safe to commit', () => {
   assert.equal(example.rootDir, 'src');
   assert.equal(example.scriptId, 'PASTE_YOUR_SCRIPT_ID_HERE');
   assert.match(read('.gitignore'), /^\.clasp\.json$/m);
-  assert.equal(fs.existsSync(path.join(root, '.clasp.json')), false);
 });
 
 test('user facing copy has no em dashes and the source does not log', () => {

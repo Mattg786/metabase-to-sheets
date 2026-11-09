@@ -189,7 +189,7 @@
         <button id="save" class="secondary" type="button">Save</button>
         <button id="sync" class="primary" type="button">Sync now</button>
       </div>
-      <p class="hint">Sync replaces the cells on the chosen sheet. If the new result is smaller, leftover rows are cleared.</p>
+      <p class="hint">Sync writes into the chosen sheet starting at A1. Only the previously synced block is cleared. Cells you typed outside that block are left alone.</p>
     </form>
 
     <p id="notice" class="panel notice hidden" role="status"></p>
