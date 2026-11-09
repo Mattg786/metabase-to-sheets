@@ -23,7 +23,7 @@ test('static output contains only public site assets and no server secrets or ba
 });
 
 test('public pages expose privacy, terms, support, pricing, and accessible metadata', () => {
-  const host = 'https://metabase-to-sheets.example-subdomain.workers.dev';
+  const host = 'https://metabase-to-sheets.matthew-k-galea.workers.dev';
   for (const page of ['index', 'privacy', 'terms', 'support', 'pricing', 'success']) {
     const html = read(`site/${page}.html`);
     assert.match(html, /<title>/, page);
@@ -72,5 +72,5 @@ test('Workers Static Assets routes only API paths through the Worker', () => {
   assert.doesNotMatch(read('worker/index.mjs'), /console\./);
   assert.equal(fs.existsSync(path.join(root, 'vercel.json')), false);
   assert.equal(fs.existsSync(path.join(root, 'api')), false);
-  assert.match(read('src/Lib.js'), /example-subdomain\.workers\.dev\/api\/licence/);
+  assert.match(read('src/Lib.js'), /metabase-to-sheets\.matthew-k-galea\.workers\.dev\/api\/licence/);
 });

@@ -4,7 +4,7 @@ This branch prepares the payment path. It does not create Stripe accounts, produ
 
 ## Hosting and card boundary
 
-The configured host is a clearly marked placeholder: `https://metabase-to-sheets.example-subdomain.workers.dev`. It is not a live site or a confirmed Cloudflare subdomain. Replace it consistently in `src/Lib.js`, `site/site-config.js`, page canonical and Open Graph metadata, `site/robots.txt`, and `site/sitemap.xml` before production.
+The planned host is `https://metabase-to-sheets.matthew-k-galea.workers.dev`. It is not yet live or verified. Confirm it during the separately approved deployment, and update `src/Lib.js`, `site/site-config.js`, page canonical and Open Graph metadata, `site/robots.txt`, and `site/sitemap.xml` together if the final host differs.
 
 Cloudflare's general grant in section 2.1 of its [Terms of Service](https://www.cloudflare.com/terms/) grants a limited right to access and use the Services subject to the Agreement, including payment obligations. Sections 2.2.1, 2.6, and 2.7 contain no general non-commercial restriction. Cloudflare does not explicitly state that commercial use is allowed. The commercial-use conclusion here is an inference from the general grant and the absence of that restriction in those sections. The [Developer Platform service-specific terms](https://www.cloudflare.com/service-specific-terms-developer-platform/) cover Workers and Pages and state that the Developer Platform can host content. The [Website Terms](https://www.cloudflare.com/website-terms/) exclude products provided under self-serve, enterprise, or other signed agreements.
 
@@ -26,7 +26,7 @@ The API preserves the existing paths: `/api/licence`, `/api/webhook`, `/api/paym
 
 ## Stripe setup after approval
 
-1. Confirm the production host and update every placeholder URL listed above. Keep the OAuth scopes and Apps Script manifest unchanged.
+1. Confirm the production host and update every URL listed above together if it differs from the planned host. Keep the OAuth scopes and Apps Script manifest unchanged.
 2. In the dedicated product Stripe account, create a product and recurring Price. Matt must choose and approve the amount, interval, cancellation and refund terms first.
 3. Create a Stripe Payment Link for the Price. Leave payment methods under Dashboard control. Do not override card-related payment method configuration in code.
 4. Set its after-payment redirect to `https://<approved-host>/success?session_id={CHECKOUT_SESSION_ID}`.

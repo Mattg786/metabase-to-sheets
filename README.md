@@ -94,7 +94,7 @@ The tests mock Metabase and Stripe responses, including invalid and overlong lic
 
 ## Website deployment shape
 
-Cloudflare Workers Static Assets serves `site/`; `worker/index.mjs` handles `/api/licence`, `/api/webhook`, `/api/payment-link`, and `/api/success-session`. `wrangler.toml` runs the Worker first only for `/api/*` and leaves static assets on the asset-first path. The placeholder host in the site metadata and Apps Script licence URL must be replaced together before production. See [docs/PAYMENTS.md](docs/PAYMENTS.md) and [docs/HANDOFF-CLOUDFLARE-FINAL-v1.md](docs/HANDOFF-CLOUDFLARE-FINAL-v1.md).
+Cloudflare Workers Static Assets serves `site/`; `worker/index.mjs` handles `/api/licence`, `/api/webhook`, `/api/payment-link`, and `/api/success-session`. `wrangler.toml` runs the Worker first only for `/api/*` and leaves static assets on the asset-first path. The planned host is `https://metabase-to-sheets.matthew-k-galea.workers.dev`; it is not yet live or verified. See [docs/PAYMENTS.md](docs/PAYMENTS.md) and [docs/HANDOFF-CLOUDFLARE-FINAL-v1.md](docs/HANDOFF-CLOUDFLARE-FINAL-v1.md).
 
 ## Test install
 

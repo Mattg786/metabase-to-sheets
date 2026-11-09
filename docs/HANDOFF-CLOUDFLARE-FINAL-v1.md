@@ -10,7 +10,7 @@
 
 **Wrangler:** `4.158.0`, pinned in `package-lock.json`
 
-This handoff supersedes the earlier site and licence Vercel handoff. It is based on the implementation and dated source record in [OFFICIAL-SOURCES.md](OFFICIAL-SOURCES.md). The configured `workers.dev` hostname is a placeholder, not a live address. Replace it consistently before a production deployment.
+This handoff supersedes the earlier site and licence Vercel handoff. It is based on the implementation and dated source record in [OFFICIAL-SOURCES.md](OFFICIAL-SOURCES.md). The planned `workers.dev` hostname is `https://metabase-to-sheets.matthew-k-galea.workers.dev`; it is not yet live or verified. If the final host differs, update it consistently before production.
 
 ## Hosting decision and card boundary
 
@@ -52,7 +52,7 @@ npx wrangler secret put STRIPE_API_VERSION
 
 ## Local validation and later deployment
 
-Local commands require no Cloudflare or Stripe login. The local Worker has no remote bindings and no credentials. The configured placeholder makes the sidebar use the example host until the final URL is chosen.
+Local commands require no Cloudflare or Stripe login. The local Worker has no remote bindings and no credentials. The sidebar is configured to use the planned host, which is not yet live or verified.
 
 ```sh
 npm ci
