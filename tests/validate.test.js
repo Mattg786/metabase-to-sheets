@@ -88,3 +88,65 @@ test('removes the API key from text', () => {
   assert.equal(scrubSecrets('failed for ' + secret, [secret]), 'failed for [redacted]');
   assert.equal(scrubSecrets('X-API-Key: ' + secret, []), 'X-API-Key: [redacted]');
 });
+
+test('accepts a Cloudflare tunnel style Metabase host', () => {
+  const result = validateBaseUrl('https://scenarios-timer-detected-simulation.trycloudflare.com');
+  assert.deepEqual(result, {
+    ok: true,
+    baseUrl: 'https://scenarios-timer-detected-simulation.trycloudflare.com',
+  });
+});
+
+test('validateBaseUrl and parseCardId work when the WHATWG URL global is missing', () => {
+  const originalUrl = globalThis.URL;
+  const originalURLSearchParams = globalThis.URLSearchParams;
+  try {
+    // Apps Script V8 has no URL. Prove the validators do not need it.
+    // eslint-disable-next-line no-global-assign
+    globalThis.URL = undefined;
+    globalThis.URLSearchParams = undefined;
+    delete globalThis.URL;
+    delete globalThis.URLSearchParams;
+
+    assert.equal(typeof globalThis.URL, 'undefined');
+
+    assert.deepEqual(validateBaseUrl('https://example.metabaseapp.com/'), {
+      ok: true,
+      baseUrl: 'https://example.metabaseapp.com',
+    });
+    assert.deepEqual(
+      validateBaseUrl('https://scenarios-timer-detected-simulation.trycloudflare.com'),
+      {
+        ok: true,
+        baseUrl: 'https://scenarios-timer-detected-simulation.trycloudflare.com',
+      }
+    );
+    assert.deepEqual(validateBaseUrl('https://bi.example.com:8443/metabase/'), {
+      ok: true,
+      baseUrl: 'https://bi.example.com:8443/metabase',
+    });
+    assert.match(validateBaseUrl('https://user:secret@example.com').error, /username or password/);
+    assert.match(validateBaseUrl('http://example.metabaseapp.com').error, /https/);
+    assert.match(validateBaseUrl('https://example.com/question/42').error, /question URL/);
+    assert.match(validateBaseUrl('not a url').error, /valid Metabase site URL/);
+    assert.deepEqual(validateBaseUrl('https://example.com/../secret'), {
+      ok: true,
+      baseUrl: 'https://example.com/secret',
+    });
+
+    assert.deepEqual(parseCardId('https://example.com/question/42-orders'), {
+      ok: true,
+      cardId: 42,
+    });
+    assert.deepEqual(parseCardId('https://example.com/model/7'), {
+      ok: true,
+      cardId: 7,
+    });
+    assert.match(parseCardId('https://example.com/dashboard/1').error, /does not include a question ID/);
+  } finally {
+    if (originalUrl === undefined) delete globalThis.URL;
+    else globalThis.URL = originalUrl;
+    if (originalURLSearchParams === undefined) delete globalThis.URLSearchParams;
+    else globalThis.URLSearchParams = originalURLSearchParams;
+  }
+});

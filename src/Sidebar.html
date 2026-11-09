@@ -56,7 +56,6 @@
 
       input[type="text"],
       input[type="password"],
-      input[type="url"],
       select {
         width: 100%;
         min-height: 36px;
@@ -148,7 +147,7 @@
     <form id="settings-form">
       <div class="field">
         <label for="base-url">Metabase site URL</label>
-        <input id="base-url" name="baseUrl" type="url" inputmode="url" autocomplete="url" spellcheck="false" maxlength="300" required aria-required="true" />
+        <input id="base-url" name="baseUrl" type="text" inputmode="url" autocomplete="url" spellcheck="false" maxlength="300" required aria-required="true" />
         <p class="hint">The https address of your Metabase, with no path. Example: https://example.metabaseapp.com</p>
       </div>
 
@@ -228,14 +227,20 @@
         showText('error', message ? 'Error: ' + message : '');
       }
 
+      function fieldValue(id) {
+        var node = byId(id);
+        // Read .value directly so typed text is used even before blur.
+        return node ? String(node.value) : '';
+      }
+
       function readForm() {
         return {
-          baseUrl: byId('base-url').value,
-          apiKey: byId('api-key').value,
+          baseUrl: fieldValue('base-url'),
+          apiKey: fieldValue('api-key'),
           removeApiKey: byId('remove-key').checked,
-          cardId: byId('card-id').value,
-          sheetName: byId('sheet-name').value,
-          schedule: byId('schedule').value
+          cardId: fieldValue('card-id'),
+          sheetName: fieldValue('sheet-name'),
+          schedule: fieldValue('schedule')
         };
       }
 
@@ -292,18 +297,24 @@
           showError('The add-on could not complete that request. Try again.');
           return;
         }
-        if (result.state) applyState(result.state);
         if (!result.ok) {
+          // Keep the values the user just typed. Failed saves have not stored them.
+          if (result.state) {
+            byId('last-sync').textContent = result.state.lastSyncLabel || 'Not synced yet.';
+          }
           showError(result.error || 'The request failed.');
           return;
         }
+        if (result.state) applyState(result.state);
         showText('notice', result.message || 'Saved.');
       }
 
-      function run(method, form) {
+      function run(method) {
         if (busy) return;
+        var form = readForm();
         setBusy(true);
         showText('notice', '');
+        showError('');
         var runner = google.script.run
           .withSuccessHandler(onMutation)
           .withFailureHandler(onFailure);
@@ -356,10 +367,10 @@
         event.preventDefault();
       });
       byId('save').addEventListener('click', function () {
-        run('saveSettings', readForm());
+        run('saveSettings');
       });
       byId('sync').addEventListener('click', function () {
-        run('syncNow', readForm());
+        run('syncNow');
       });
       byId('load-questions').addEventListener('click', loadQuestions);
       byId('question-select').addEventListener('change', function () {

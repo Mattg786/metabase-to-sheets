@@ -34,23 +34,104 @@ function failure(message) {
   return { ok: false, error: message };
 }
 
+/**
+ * Parse an https site URL without the WHATWG URL global.
+ * Apps Script V8 does not provide URL, so this uses a small manual parser.
+ */
+function parseHttpsSiteUrl(raw) {
+  var match = String(raw).match(/^(https?):\/\/([^\/?#]*)([^?#]*)(\?[^#]*)?(#.*)?$/i);
+  if (!match) return null;
+
+  var authority = match[2];
+  if (!authority) return null;
+
+  var userinfo = '';
+  var hostPort = authority;
+  var at = authority.lastIndexOf('@');
+  if (at !== -1) {
+    userinfo = authority.slice(0, at);
+    hostPort = authority.slice(at + 1);
+  }
+  if (!hostPort) return null;
+
+  var hostname = '';
+  var port = '';
+  if (hostPort.charAt(0) === '[') {
+    var end = hostPort.indexOf(']');
+    if (end === -1) return null;
+    hostname = hostPort.slice(0, end + 1);
+    var after = hostPort.slice(end + 1);
+    if (after) {
+      if (after.charAt(0) !== ':') return null;
+      port = after.slice(1);
+    }
+  } else {
+    var colon = hostPort.lastIndexOf(':');
+    if (colon !== -1 && hostPort.indexOf(':') === colon) {
+      hostname = hostPort.slice(0, colon);
+      port = hostPort.slice(colon + 1);
+    } else {
+      hostname = hostPort;
+    }
+  }
+
+  if (!hostname) return null;
+  if (port !== '' && !/^\d{1,5}$/.test(port)) return null;
+  if (port !== '') {
+    var portNumber = Number(port);
+    if (portNumber < 1 || portNumber > 65535) return null;
+  }
+
+  var pathname = match[3] || '';
+  if (pathname && pathname.charAt(0) !== '/') return null;
+
+  return {
+    protocol: match[1].toLowerCase() + ':',
+    userinfo: userinfo,
+    hostname: hostname.toLowerCase(),
+    port: port,
+    pathname: pathname || '/',
+    search: match[4] || '',
+    hash: match[5] || ''
+  };
+}
+
+function resolvePathSegments(pathname) {
+  var rawParts = String(pathname || '/').split('/');
+  var parts = [];
+  for (var i = 0; i < rawParts.length; i++) {
+    var part = rawParts[i];
+    if (part === '' || part === '.') continue;
+    if (part === '..') {
+      if (parts.length) parts.pop();
+      continue;
+    }
+    parts.push(part);
+  }
+  return parts;
+}
+
+function buildHttpsHost(hostname, port) {
+  var host = hostname;
+  if (port && port !== '443') host += ':' + port;
+  return host;
+}
+
 function validateBaseUrl(input) {
   var raw = String(input == null ? '' : input).trim();
   if (!raw) {
     return failure('Enter the Metabase site URL.');
   }
 
-  var url;
-  try {
-    url = new URL(raw);
-  } catch (error) {
+  var url = parseHttpsSiteUrl(raw);
+  if (!url) {
     return failure('Enter a valid Metabase site URL.');
   }
 
   if (url.protocol !== 'https:') {
     return failure('The Metabase site URL must start with https://.');
   }
-  if (url.username || url.password) {
+  if (url.userinfo) {
     return failure('The Metabase URL must not include a username or password.');
   }
   if (url.search || url.hash) {
@@ -60,19 +141,20 @@ function validateBaseUrl(input) {
     return failure('Enter a valid Metabase site URL.');
   }
 
-  var hostname = url.hostname.toLowerCase();
-  if (hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1') {
+  var hostname = url.hostname;
+  var bareHost = hostname.charAt(0) === '[' && hostname.charAt(hostname.length - 1) === ']'
+    ? hostname.slice(1, -1)
+    : hostname;
+  if (bareHost === 'localhost' || bareHost === '127.0.0.1' || bareHost === '::1') {
     return failure('Apps Script cannot reach a Metabase on localhost. Use a public https address.');
   }
 
-  var parts = url.pathname.split('/').filter(function (part) {
-    return part !== '';
-  });
+  var parts = resolvePathSegments(url.pathname);
   if (parts.indexOf('.') !== -1 || parts.indexOf('..') !== -1) {
     return failure('Enter a valid Metabase site URL.');
   }
 
-  var lowerPath = url.pathname.toLowerCase();
+  var lowerPath = parts.length ? '/' + parts.join('/').toLowerCase() : '/';
   if (lowerPath.indexOf('/question') !== -1 || lowerPath.indexOf('/model') !== -1) {
     return failure('That looks like a question URL. Enter the Metabase site URL, and put the question ID in the question field.');
   }
@@ -87,7 +169,7 @@ function validateBaseUrl(input) {
     }).join('/');
   }
 
-  return { ok: true, baseUrl: 'https://' + url.host + basePath };
+  return { ok: true, baseUrl: 'https://' + buildHttpsHost(hostname, url.port) + basePath };
 }
 
 function parseCardId(input) {
@@ -98,13 +180,11 @@ function parseCardId(input) {
 
   var idText = raw;
   if (/^https?:\/\//i.test(raw)) {
-    var url;
-    try {
-      url = new URL(raw);
-    } catch (error) {
+    var pathMatch = raw.match(/^https?:\/\/[^\/?#]+([^?#]*)/i);
+    if (!pathMatch) {
       return failure('Enter a question ID (a positive whole number).');
     }
-    var match = url.pathname.match(/\/(?:question|model)\/(\d+)/);
+    var match = pathMatch[1].match(/\/(?:question|model)\/(\d+)/);
     if (!match) {
       return failure('That URL does not include a question ID.');
     }
@@ -896,6 +976,8 @@ if (typeof module !== 'undefined' && module.exports) {
     SCHEDULE_OPTIONS: SCHEDULE_OPTIONS,
     MAX_RESULT_ROWS: MAX_RESULT_ROWS,
     MAX_RESULT_COLUMNS: MAX_RESULT_COLUMNS,
+    parseHttpsSiteUrl: parseHttpsSiteUrl,
+    resolvePathSegments: resolvePathSegments,
     validateBaseUrl: validateBaseUrl,
     parseCardId: parseCardId,
     validateApiKey: validateApiKey,
