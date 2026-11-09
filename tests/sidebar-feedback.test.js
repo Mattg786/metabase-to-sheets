@@ -6,10 +6,11 @@ const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
 
-const HOURLY_ERROR = 'Hourly and Every 6 hours require an active Pro licence. Manual sync and Daily remain available.';
-const PRO_HINT = 'Pro plan. Active Pro subscription verified.';
+const HOURLY_ERROR = 'Hourly and Every 6 hours need Pro. Manual sync and Daily still work.';
+const PRO_HINT = 'Pro. Subscription active.';
 const FREE_HINT = 'Free plan. Manual sync and Daily are available.';
-const INVALID_HINT = 'Free plan. Unrecognised licence key.';
+const INVALID_HINT = 'Free plan. Licence key not recognised. Check it against your payment confirmation.';
+const INVALID_ERROR = 'Licence key not recognised. Check it against your payment confirmation.';
 
 function createNode(id, tag, hidden) {
   const node = {
@@ -60,6 +61,8 @@ function loadSidebar() {
     ['remove-key-row', 'label', true],
     ['remove-licence-row', 'label', true],
     ['licence-status', 'p'],
+    ['pricing-hint', 'p'],
+    ['pro-notice', 'p', true],
     ['sheet-name', 'select'],
     ['schedule', 'select'],
     ['question-select', 'select'],
@@ -220,14 +223,14 @@ test('a failed licence save refreshes the hint and ignores an older success', ()
 
   first.success({
     ok: false,
-    error: 'Unrecognised licence key.',
+    error: INVALID_ERROR,
     state: {
       lastSyncLabel: 'Not synced yet.',
       licencePlan: 'free',
       licenceStatus: INVALID_HINT,
     },
   });
-  assert.equal(ui.nodes.error.textContent, 'Error: Unrecognised licence key.');
+  assert.equal(ui.nodes.error.textContent, 'Error: ' + INVALID_ERROR);
   assert.equal(ui.nodes.error.textContent.includes('Hourly'), false);
   assert.equal(ui.nodes['licence-status'].textContent, INVALID_HINT);
 
@@ -245,4 +248,69 @@ test('a failed licence save refreshes the hint and ignores an older success', ()
   });
   assert.equal(ui.nodes.error.textContent, '');
   assert.equal(ui.nodes['licence-status'].textContent, PRO_HINT);
+});
+
+test('saved keys use the short placeholder and free plans label Pro schedules', () => {
+  const ui = loadSidebar();
+  ui.calls[0].success(savedState({ hasLicenceKey: true, licenceTone: 'unchecked' }));
+  assert.equal(ui.nodes['api-key'].placeholder, 'Saved. Leave blank to keep.');
+  assert.equal(ui.nodes['licence-key'].placeholder, 'Saved. Leave blank to keep.');
+  const labels = ui.nodes.schedule.children.map((option) => option.textContent);
+  assert.deepEqual(labels, ['Manual only', 'Hourly (Pro)', 'Every 6 hours (Pro)', 'Daily']);
+  assert.equal(ui.nodes['pricing-hint'].classList.contains('hidden'), false);
+  assert.equal(ui.nodes['licence-status'].classList.contains('is-unchecked'), true);
+});
+
+test('a Pro plan drops the Pro suffix, hides the pricing hint, and styles the status', () => {
+  const ui = loadSidebar();
+  ui.calls[0].success(savedState({ licencePlan: 'pro', licenceTone: 'active', licenceStatus: PRO_HINT, hasLicenceKey: true }));
+  const labels = ui.nodes.schedule.children.map((option) => option.textContent);
+  assert.deepEqual(labels, ['Manual only', 'Hourly', 'Every 6 hours', 'Daily']);
+  assert.equal(ui.nodes['pricing-hint'].classList.contains('hidden'), true);
+  assert.equal(ui.nodes['licence-status'].classList.contains('is-active'), true);
+
+  ui.nodes.save.listeners.click();
+  ui.calls.at(-1).success({
+    ok: true,
+    message: 'Saved.',
+    state: savedState({ licencePlan: 'pro', licenceTone: 'fallback', licenceStatus: 'Pro. The licence server could not be reached, so the last successful check is in use.' }),
+  });
+  assert.equal(ui.nodes['licence-status'].classList.contains('is-fallback'), true);
+  assert.equal(ui.nodes['licence-status'].classList.contains('is-active'), false);
+});
+
+test('the Pro restriction shows a notice with a pricing link instead of an error', () => {
+  const ui = openSidebar();
+  ui.nodes.save.listeners.click();
+  ui.calls.at(-1).success({
+    ok: false,
+    proRequired: true,
+    error: HOURLY_ERROR,
+    state: { lastSyncLabel: 'Not synced yet.', licencePlan: 'free', licenceStatus: FREE_HINT },
+  });
+  assert.equal(ui.nodes['pro-notice'].classList.contains('hidden'), false);
+  assert.equal(ui.nodes.error.classList.contains('hidden'), true);
+
+  ui.nodes.sync.listeners.click();
+  assert.equal(ui.nodes['pro-notice'].classList.contains('hidden'), true);
+  ui.calls.at(-1).success({ ok: false, error: 'Enter an API key before syncing.', state: { lastSyncLabel: 'Not synced yet.' } });
+  assert.equal(ui.nodes.error.textContent, 'Error: Enter an API key before syncing.');
+  assert.equal(ui.nodes['pro-notice'].classList.contains('hidden'), true);
+});
+
+test('feedback scrolls into view and sits above the action buttons', () => {
+  const ui = openSidebar();
+  let scrolled = 0;
+  ui.nodes.notice.scrollIntoView = () => { scrolled += 1; };
+  ui.nodes.save.listeners.click();
+  ui.calls.at(-1).success({ ok: true, message: 'Saved.', state: savedState() });
+  assert.equal(scrolled, 1);
+
+  const html = fs.readFileSync(path.join(__dirname, '..', 'src', 'Sidebar.html'), 'utf8');
+  const markup = html.slice(0, html.indexOf('<script>'));
+  assert.ok(markup.indexOf('id="error"') < markup.indexOf('id="save"'));
+  assert.ok(markup.indexOf('id="notice"') < markup.indexOf('id="save"'));
+  assert.ok(markup.indexOf('id="schedule"') < markup.indexOf('id="licence-key"'));
+  assert.match(markup, /id="pricing-hint"[^]*\/pricing/);
+  assert.match(markup, /--accent: #0a716f/);
 });

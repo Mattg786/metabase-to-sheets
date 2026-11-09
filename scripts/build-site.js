@@ -16,7 +16,7 @@ const required = [
   'site/site-config.js',
   'site/sitemap.xml',
   'site/robots.txt',
-  'site/assets/og.svg',
+  'site/assets/og.png',
 ];
 
 for (const relative of required) {

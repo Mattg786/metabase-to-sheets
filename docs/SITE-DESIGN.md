@@ -2,45 +2,52 @@
 
 ## Direction
 
-Metabase to Sheets is about a saved question becoming cells in a spreadsheet. The site uses a calm, technical reading order and shows that action directly. It does not use invented metrics, testimonials, neon gradients, a generic SaaS card grid, or decorative labels.
+Metabase to Sheets copies a saved Metabase question into spreadsheet cells. The site shows that directly: an example question above a small sheet grid, with real column letters and row numbers and the result starting at A1. That grid is the one memorable element. Everything else stays quiet: left aligned, plain rules, no card grid, no eyebrow labels, no gradients, no invented users, ratings, or testimonials.
 
-## Colour system
+## Colour
 
-- `#F6F9FC` cool off-white page background
-- `#183344` ink navy for body text and deep panels
-- `#0A716F` muted teal for links and primary actions
-- `#CAD8E1` spreadsheet grey for rules and grid lines
-- `#E7F0F7` pale blue for quiet panels and the spreadsheet surface
-- `#B55218` focused orange for keyboard focus and small status accents
+- `#F6F9FC` paper, page background
+- `#183344` ink, text and strong rules
+- `#0A716F` teal, links, buttons, the active A1 cell, and the sidebar accent
+- `#CAD8E1` grid, rules and cell borders
+- `#E7F0F7` pale blue, the shared status line and quiet surfaces
+- `#B55218` orange, keyboard focus and the "Not yet available to buy" line only
 
-The orange is reserved for focus and attention. Teal carries actions. Navy carries reading text. This keeps the interface readable without turning the page into a dark theme.
+Status colours pair a tint with text, never colour alone: teal tint for success or an active licence, amber for the licence fallback, red tint for errors.
+
+The sidebar uses the same teal. Its input borders are `#7B8D99`, 3.4:1 against white, which meets the 3:1 minimum for control borders.
 
 ## Type
 
-The site uses the system stack `Avenir Next`, `Trebuchet MS`, `Arial`, sans-serif. Avenir Next gives the headings a friendly utility feel on macOS. Trebuchet MS and Arial keep the layout usable on systems without it. No external font request is needed.
+System stack: `Avenir Next`, `Trebuchet MS`, `Arial`, sans-serif. No font request. Headings are sentence case with slight negative tracking. The home h1 is capped near 3.1rem, so the setup button sits about 560px down at 1440 by 900.
 
 ## Layout
 
-The layout stays left aligned inside a narrow reading column. On wide screens the hero has two columns. The left side explains the saved-question workflow. The right side is a labelled illustration, not a product screenshot or a claim about live data.
+One left edge. Every block, including inner page headings and prose, sits inside `.page-width`. Prose is limited to 68 characters but is not centred.
 
 ```text
-site header
-  brand                         navigation
-
-main
-  hero copy                     saved question panel
-    heading                     question title
-    short explanation           cell grid: Name | Value | Updated
-    action links                honest labels and row lines
-
-  how it works                  short steps, one idea per line
-  pricing or support            plain text blocks
-
-footer                          privacy | terms | support
+header      brand                                Pricing Support Privacy Terms
+status      Not on the Google Workspace Marketplace yet. Setup is manual ...
+home hero   h1, lede, [Read the setup guide] [See pricing]   | question card
+                                                             |   arrow to A1
+                                                             | sheet grid A-C, rows 1-5
+setup       1. Create key   2. Open sidebar   3. Tab and schedule
+split       What it reads and writes | three short paragraphs
+footer      one-line description               Pricing Support Privacy Terms Source code Email support
 ```
 
-Mobile collapses the illustration below the copy and keeps the navigation usable without horizontal scrolling. Focus rings remain visible. Motion is removed when the user prefers reduced motion.
+Pricing is two plans split by one vertical rule, stacking below 600px. Header, status line, and footer are identical on every page. Navigation marks the current page with `aria-current="page"`.
+
+Below 900px the hero stacks and the grid follows the copy. At 390px nothing scrolls sideways.
+
+## Open Graph image
+
+`site/assets/og.png` is 1200 by 630, rendered from `scripts/og-image.html` with headless Chrome. The command is in that file. It uses example data only.
+
+## Screenshot
+
+The home page uses a labelled example grid, not a product screenshot. There is no real screenshot of the sidebar in a test sheet yet. A `TODO(dev)` comment in `site/index.html` marks where one should go. Do not replace it with a rendered mock.
 
 ## Review notes
 
-The first generic direction was a centred SaaS hero with three feature cards and a bright gradient button. That was rejected because it says nothing about saved questions or spreadsheet cells. The revised direction uses the saved-question panel and row geometry as the memorable element. It keeps the product explanation concrete and makes the Marketplace and pricing status explicit.
+The earlier version floated the question card over the sheet with absolute positioning, which overlapped the header row on desktop. It also used decorative eyebrows, a hero h1 near 5.8rem that pushed the button below the fold, and several different Marketplace disclaimers. This version stacks the illustration in normal flow, uses one shared status line, and removes the payment button until Pro is on sale.

@@ -955,36 +955,65 @@ function activeSheetName(spreadsheet, names) {
   return names.length ? names[0] : '';
 }
 
+var LICENCE_TEXT = {
+  active: 'Subscription active.',
+  fallback: 'The licence server could not be reached, so the last successful check is in use.',
+  unrecognised: 'Licence key not recognised. Check it against your payment confirmation.',
+  notActive: 'This subscription is not active. Manual sync and Daily still work.',
+  wrongProduct: 'This subscription is not for Metabase to Sheets Pro.',
+  unavailable: 'Pro checks are unavailable right now. Manual sync and Daily still work.',
+  checkFailed: 'The licence could not be checked. Manual sync and Daily still work.',
+  free: 'Manual sync and Daily are available.',
+  unchecked: 'Key saved but not checked yet. It is checked when you save Hourly or Every 6 hours.',
+  proRequired: 'Hourly and Every 6 hours need Pro. Manual sync and Daily still work.',
+  scheduleNotChecked: 'The licence could not be checked, so the Pro schedule was not saved. Manual sync and Daily still work.'
+};
+
 function licenceUserText(reason, active) {
   var known = {
-    'invalid licence key': 'Unrecognised licence key.',
-    'licence key does not match the subscription': 'Unrecognised licence key.',
-    'subscription is not active': 'That Pro subscription is not active.',
-    'subscription is not for this product': 'That subscription is not for this product.',
-    'licensing not configured': 'Pro licensing is not available right now. Manual sync and Daily remain available.',
-    'licence check failed': 'The Pro licence could not be verified. Manual sync and Daily remain available.',
-    'active Pro subscription verified': 'Active Pro subscription verified.',
-    'The licence server is unreachable. Using the last valid Pro check temporarily.': 'The licence server is unreachable. Using the last valid Pro check temporarily.',
-    'The Pro licence could not be verified. Manual sync and Daily remain available.': 'The Pro licence could not be verified. Manual sync and Daily remain available.',
-    'No Pro licence is saved. Manual sync and Daily are available.': 'No Pro licence is saved. Manual sync and Daily are available.',
-    'Licence not checked yet.': 'Licence not checked yet.'
+    'invalid licence key': LICENCE_TEXT.unrecognised,
+    'licence key does not match the subscription': LICENCE_TEXT.unrecognised,
+    'subscription is not active': LICENCE_TEXT.notActive,
+    'subscription is not for this product': LICENCE_TEXT.wrongProduct,
+    'licensing not configured': LICENCE_TEXT.unavailable,
+    'licence check failed': LICENCE_TEXT.checkFailed,
+    'active Pro subscription verified': LICENCE_TEXT.active,
+    'The licence server is unreachable. Using the last valid Pro check temporarily.': LICENCE_TEXT.fallback,
+    'The Pro licence could not be verified. Manual sync and Daily remain available.': LICENCE_TEXT.checkFailed,
+    'No Pro licence is saved. Manual sync and Daily are available.': LICENCE_TEXT.free,
+    'Licence not checked yet.': LICENCE_TEXT.unchecked
   };
   if (known[reason]) return known[reason];
-  if (active) return 'Active Pro subscription verified.';
-  return 'The Pro licence could not be verified. Manual sync and Daily remain available.';
+  if (active) return LICENCE_TEXT.active;
+  return LICENCE_TEXT.checkFailed;
+}
+
+function isNoLicenceAccess(access) {
+  return !access || (!access.active && (!access.reason || access.reason === 'No Pro licence is saved. Manual sync and Daily are available.'));
 }
 
 function licenceStatusLine(access) {
-  if (!access || (!access.active && (!access.reason || access.reason === 'No Pro licence is saved. Manual sync and Daily are available.'))) {
-    return 'Free plan. Manual sync and Daily are available.';
-  }
-  return (access.active ? 'Pro plan' : 'Free plan') + '. ' + licenceUserText(access.reason, access.active);
+  if (isNoLicenceAccess(access)) return 'Free plan. ' + LICENCE_TEXT.free;
+  return (access.active ? 'Pro' : 'Free plan') + '. ' + licenceUserText(access.reason, access.active);
+}
+
+// Display only: picks the sidebar style for the licence line. It does not change access.
+function licenceTone(access) {
+  if (isNoLicenceAccess(access)) return 'none';
+  if (access.active) return access.stale ? 'fallback' : 'active';
+  return 'inactive';
 }
 
 function licenceStatusForStored(licenceKey, licenceCache) {
-  if (!licenceKey) return 'Free plan. Manual sync and Daily are available.';
-  if (!licenceCache || !licenceCache.access) return 'Free plan. Licence not checked yet.';
+  if (!licenceKey) return 'Free plan. ' + LICENCE_TEXT.free;
+  if (!licenceCache || !licenceCache.access) return 'Free plan. ' + LICENCE_TEXT.unchecked;
   return licenceStatusLine(licenceCache.access);
+}
+
+function licenceToneForStored(licenceKey, licenceCache) {
+  if (!licenceKey) return 'none';
+  if (!licenceCache || !licenceCache.access) return 'unchecked';
+  return licenceTone(licenceCache.access);
 }
 
 function buildSidebarState(services) {
@@ -1004,6 +1033,7 @@ function buildSidebarState(services) {
     hasLicenceKey: licenceKey !== '',
     licencePlan: storedAccess && storedAccess.active ? 'pro' : 'free',
     licenceStatus: licenceStatusForStored(licenceKey, licenceCache),
+    licenceTone: licenceToneForStored(licenceKey, licenceCache),
     sheets: names,
     schedules: SCHEDULE_OPTIONS,
     lastSyncAt: config.lastSyncAt,
@@ -1023,6 +1053,7 @@ function withLicenceResult(services, result, checked) {
   if (checked && checked.access) {
     result.state.licencePlan = checked.access.active ? 'pro' : 'free';
     result.state.licenceStatus = licenceStatusLine(checked.access);
+    result.state.licenceTone = licenceTone(checked.access);
   }
   return result;
 }
@@ -1164,12 +1195,18 @@ function checkScheduleLicence(schedule, licenceKey, services, options) {
   var checked = getLicenceAccessForKey(licenceKey, services, options);
   if (checked.access.active) return { ok: true, access: checked.access, cache: checked.cache };
   var denial = licenceDenialMessage(checked.access);
+  var proRequired = !denial && !checked.access.unavailable;
   var message = denial
     ? denial
-    : (checked.access.unavailable
-      ? 'The Pro licence could not be verified, so the restricted schedule was not saved. Manual sync and Daily remain available.'
-      : 'Hourly and Every 6 hours require an active Pro licence. Manual sync and Daily remain available.');
-  return { ok: false, error: message, access: checked.access, cache: checked.cache };
+    : (checked.access.unavailable ? LICENCE_TEXT.scheduleNotChecked : LICENCE_TEXT.proRequired);
+  return { ok: false, error: message, proRequired: proRequired, access: checked.access, cache: checked.cache };
+}
+
+// Display only: flags the plan restriction so the sidebar can show it as a notice.
+function licenceFailure(checked) {
+  var result = failure(checked.error);
+  if (checked.proRequired) result.proRequired = true;
+  return result;
 }
 
 function checkSaveLicence(schedule, resolved, services) {
@@ -1280,7 +1317,7 @@ function saveSettingsForUser(form, services) {
   }
 
   var checkedLicence = checkSaveLicence(scheduleForCheck, licence, services);
-  if (!checkedLicence.ok) return withLicenceResult(services, failure(checkedLicence.error), checkedLicence);
+  if (!checkedLicence.ok) return withLicenceResult(services, licenceFailure(checkedLicence), checkedLicence);
 
   var validatedApiKey = null;
   if (typed) {
@@ -1329,7 +1366,7 @@ function syncNowForUser(form, services) {
     return withState(services, failure('Enter an API key before syncing.'));
   }
   var checkedLicence = checkSaveLicence(validated.settings.schedule, licence, services);
-  if (!checkedLicence.ok) return withLicenceResult(services, failure(checkedLicence.error), checkedLicence);
+  if (!checkedLicence.ok) return withLicenceResult(services, licenceFailure(checkedLicence), checkedLicence);
 
   var outcome = executeSync(validated.settings, validated.sheet, key.apiKey, services);
   if (outcome.ok && key.replace) {
@@ -1499,6 +1536,7 @@ if (typeof module !== 'undefined' && module.exports) {
     createStore: createStore,
     getLicenceAccessForKey: getLicenceAccessForKey,
     checkScheduleLicence: checkScheduleLicence,
+    LICENCE_TEXT: LICENCE_TEXT,
     resolveLicenceKey: resolveLicenceKey,
     applySchedule: applySchedule,
     buildSidebarState: buildSidebarState,
