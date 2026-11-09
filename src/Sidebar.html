@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <base target="_top" />
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Metabase to Sheets</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --text: #1c1c1c;
+        --muted: #3d4a54;
+        --line: #c5ced6;
+        --bg: #ffffff;
+        --accent: #0b5f8a;
+        --accent-text: #ffffff;
+        --error-bg: #fdecec;
+        --error-text: #7a1f1f;
+        --notice-bg: #e7f2f8;
+        --notice-text: #0d3f5c;
+      }
+
+      * { box-sizing: border-box; }
+
+      body {
+        margin: 0;
+        padding: 16px;
+        background: var(--bg);
+        color: var(--text);
+        font: 14px/1.45 "Google Sans", Arial, sans-serif;
+      }
+
+      h1 {
+        margin: 0 0 8px;
+        font-size: 18px;
+        line-height: 1.3;
+        font-weight: 700;
+      }
+
+      p { margin: 0 0 12px; }
+
+      .intro, .hint, .schedule-note {
+        color: var(--muted);
+        font-size: 13px;
+      }
+
+      form { margin: 0; }
+
+      .field { margin: 0 0 12px; }
+
+      label {
+        display: block;
+        margin-bottom: 4px;
+        font-weight: 700;
+      }
+
+      input[type="text"],
+      input[type="password"],
+      input[type="url"],
+      select {
+        width: 100%;
+        min-height: 36px;
+        padding: 6px 8px;
+        border: 1px solid var(--line);
+        border-radius: 4px;
+        background: #fff;
+        color: var(--text);
+        font: inherit;
+      }
+
+      input:focus,
+      select:focus,
+      button:focus {
+        outline: 2px solid var(--accent);
+        outline-offset: 2px;
+      }
+
+      .check {
+        display: flex;
+        gap: 8px;
+        align-items: flex-start;
+        margin: -4px 0 12px;
+        font-weight: 400;
+      }
+
+      .check input { margin-top: 2px; }
+
+      .actions {
+        display: flex;
+        gap: 8px;
+        margin: 4px 0 12px;
+      }
+
+      button {
+        min-height: 36px;
+        padding: 6px 12px;
+        border-radius: 4px;
+        border: 1px solid var(--accent);
+        font: inherit;
+        cursor: pointer;
+      }
+
+      button:disabled {
+        opacity: 0.6;
+        cursor: default;
+      }
+
+      button.primary {
+        background: var(--accent);
+        color: var(--accent-text);
+      }
+
+      button.secondary {
+        background: #fff;
+        color: var(--accent);
+      }
+
+      a {
+        color: var(--accent);
+        text-underline-offset: 2px;
+      }
+
+      .panel {
+        margin: 0 0 12px;
+        padding: 8px 10px;
+        border-radius: 4px;
+      }
+
+      .notice {
+        background: var(--notice-bg);
+        color: var(--notice-text);
+      }
+
+      .error {
+        background: var(--error-bg);
+        color: var(--error-text);
+      }
+
+      #question-picker { margin-top: 8px; }
+
+      .hidden { display: none; }
+    </style>
+  </head>
+  <body>
+    <h1>Metabase to Sheets</h1>
+    <p class="intro">Copies one saved question into this sheet. Data only moves from Metabase to the sheet.</p>
+
+    <form id="settings-form">
+      <div class="field">
+        <label for="base-url">Metabase site URL</label>
+        <input id="base-url" name="baseUrl" type="url" inputmode="url" autocomplete="url" spellcheck="false" maxlength="300" required aria-required="true" />
+        <p class="hint">The https address of your Metabase, with no path. Example: https://example.metabaseapp.com</p>
+      </div>
+
+      <div class="field">
+        <label for="api-key">API key</label>
+        <input id="api-key" name="apiKey" type="password" autocomplete="off" spellcheck="false" maxlength="500" />
+        <p class="hint">From Metabase: Admin, Settings, Authentication, API keys. The key stays in your Google account. It is not written to the sheet. <a href="https://www.metabase.com/docs/latest/people-and-groups/api-keys" target="_blank" rel="noopener noreferrer">How to create an API key</a></p>
+      </div>
+
+      <label class="check hidden" id="remove-key-row" for="remove-key">
+        <input id="remove-key" type="checkbox" />
+        <span>Remove saved API key</span>
+      </label>
+
+      <div class="field">
+        <label for="card-id">Question ID</label>
+        <input id="card-id" name="cardId" type="text" inputmode="text" autocomplete="off" spellcheck="false" required aria-required="true" />
+        <p class="hint">The number in the question URL. Example: 42 from /question/42.</p>
+        <button id="load-questions" class="secondary" type="button">Load questions</button>
+        <div id="question-picker" class="hidden">
+          <label for="question-select">Choose a question</label>
+          <select id="question-select"></select>
+          <p id="question-note" class="hint hidden"></p>
+        </div>
+      </div>
+
+      <div class="field">
+        <label for="sheet-name">Sheet</label>
+        <select id="sheet-name" name="sheetName" required aria-required="true"></select>
+      </div>
+
+      <div class="field">
+        <label for="schedule">Schedule</label>
+        <select id="schedule" name="schedule"></select>
+        <p class="schedule-note">The schedule runs as the Google account that saved it, and uses that account's API key. Hourly, every 6 hours, and daily are approximate. Apps Script chooses the exact minute.</p>
+      </div>
+
+      <div class="actions">
+        <button id="save" class="secondary" type="button">Save</button>
+        <button id="sync" class="primary" type="button">Sync now</button>
+      </div>
+      <p class="hint">Sync replaces the cells on the chosen sheet. If the new result is smaller, leftover rows are cleared.</p>
+    </form>
+
+    <p id="notice" class="panel notice hidden" role="status"></p>
+    <p id="last-sync" role="status">Not synced yet.</p>
+    <p id="error" class="panel error hidden" role="alert"></p>
+
+    <script>
+      var busy = false;
+
+      function byId(id) {
+        return document.getElementById(id);
+      }
+
+      function showText(id, text) {
+        var node = byId(id);
+        if (!text) {
+          node.textContent = '';
+          node.classList.add('hidden');
+          return;
+        }
+        node.textContent = text;
+        node.classList.remove('hidden');
+      }
+
+      function setBusy(isBusy) {
+        busy = isBusy;
+        var controls = document.querySelectorAll('button, input, select');
+        for (var i = 0; i < controls.length; i++) {
+          controls[i].disabled = isBusy;
+        }
+      }
+
+      function showError(message) {
+        if (message) showText('notice', '');
+        showText('error', message ? 'Error: ' + message : '');
+      }
+
+      function readForm() {
+        return {
+          baseUrl: byId('base-url').value,
+          apiKey: byId('api-key').value,
+          removeApiKey: byId('remove-key').checked,
+          cardId: byId('card-id').value,
+          sheetName: byId('sheet-name').value,
+          schedule: byId('schedule').value
+        };
+      }
+
+      function fillSelect(select, options, selected) {
+        while (select.firstChild) select.removeChild(select.firstChild);
+        for (var i = 0; i < options.length; i++) {
+          var option = document.createElement('option');
+          option.value = options[i].value;
+          option.textContent = options[i].label;
+          if (options[i].value === selected) option.selected = true;
+          select.appendChild(option);
+        }
+      }
+
+      function applyState(state) {
+        if (!state) return;
+        byId('base-url').value = state.baseUrl || '';
+        byId('card-id').value = state.cardId || '';
+        byId('api-key').value = '';
+        byId('remove-key').checked = false;
+
+        var removeRow = byId('remove-key-row');
+        if (state.hasApiKey) removeRow.classList.remove('hidden');
+        else removeRow.classList.add('hidden');
+
+        var placeholder = state.hasApiKey
+          ? 'A key is saved. Leave this blank to keep it.'
+          : '';
+        byId('api-key').placeholder = placeholder;
+
+        var sheetOptions = (state.sheets || []).map(function (name) {
+          return { value: name, label: name };
+        });
+        var selectedSheet = state.sheetName || state.activeSheetName || '';
+        fillSelect(byId('sheet-name'), sheetOptions, selectedSheet);
+
+        var scheduleOptions = (state.schedules || []).map(function (item) {
+          return { value: item.id, label: item.label };
+        });
+        fillSelect(byId('schedule'), scheduleOptions, state.schedule || 'manual');
+
+        byId('last-sync').textContent = state.lastSyncLabel || 'Not synced yet.';
+        showError(state.lastError || '');
+      }
+
+      function onFailure() {
+        setBusy(false);
+        showError('The add-on could not complete that request. Try again.');
+      }
+
+      function onMutation(result) {
+        setBusy(false);
+        if (!result) {
+          showError('The add-on could not complete that request. Try again.');
+          return;
+        }
+        if (result.state) applyState(result.state);
+        if (!result.ok) {
+          showError(result.error || 'The request failed.');
+          return;
+        }
+        showText('notice', result.message || 'Saved.');
+      }
+
+      function run(method, form) {
+        if (busy) return;
+        setBusy(true);
+        showText('notice', '');
+        var runner = google.script.run
+          .withSuccessHandler(onMutation)
+          .withFailureHandler(onFailure);
+        runner[method](form);
+      }
+
+      function questionLabel(question) {
+        var suffix = question.type === 'model' ? 'model, ' + question.id : String(question.id);
+        return question.name + ' (' + suffix + ')';
+      }
+
+      function onQuestions(result) {
+        setBusy(false);
+        if (!result || !result.ok) {
+          showError((result && result.error) || 'Metabase did not return a list of questions.');
+          return;
+        }
+
+        var select = byId('question-select');
+        var options = [{ value: '', label: 'Select a question to fill the ID' }];
+        var questions = result.questions || [];
+        for (var i = 0; i < questions.length; i++) {
+          options.push({
+            value: String(questions[i].id),
+            label: questionLabel(questions[i])
+          });
+        }
+        fillSelect(select, options, '');
+        byId('question-picker').classList.remove('hidden');
+        if (result.truncated) {
+          showText('question-note', 'Showing the first 500 questions. You can still type a question ID.');
+        } else if (!questions.length) {
+          showText('question-note', 'No questions were returned. You can still type a question ID.');
+        } else {
+          showText('question-note', '');
+        }
+      }
+
+      function loadQuestions() {
+        if (busy) return;
+        setBusy(true);
+        showText('notice', '');
+        google.script.run
+          .withSuccessHandler(onQuestions)
+          .withFailureHandler(onFailure)
+          .loadQuestions(readForm());
+      }
+
+      byId('settings-form').addEventListener('submit', function (event) {
+        event.preventDefault();
+      });
+      byId('save').addEventListener('click', function () {
+        run('saveSettings', readForm());
+      });
+      byId('sync').addEventListener('click', function () {
+        run('syncNow', readForm());
+      });
+      byId('load-questions').addEventListener('click', loadQuestions);
+      byId('question-select').addEventListener('change', function () {
+        if (byId('question-select').value) {
+          byId('card-id').value = byId('question-select').value;
+        }
+      });
+      byId('api-key').addEventListener('input', function () {
+        if (byId('api-key').value) byId('remove-key').checked = false;
+      });
+
+      setBusy(true);
+      google.script.run
+        .withSuccessHandler(function (state) {
+          applyState(state);
+          setBusy(false);
+        })
+        .withFailureHandler(function () {
+          setBusy(false);
+          showError('The add-on could not load. Close the sidebar and open it again.');
+        })
+        .getSidebarState();
+    </script>
+  </body>
+</html>

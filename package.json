@@ -1,0 +1,12 @@
+{
+  "name": "metabase-to-sheets",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Google Sheets Editor add-on that copies a Metabase question into the active spreadsheet.",
+  "scripts": {
+    "test": "node --test"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
