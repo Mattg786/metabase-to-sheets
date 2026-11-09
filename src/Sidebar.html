@@ -209,6 +209,16 @@
 
     <script>
       var busy = false;
+      var requestSerial = 0;
+
+      function beginRequest() {
+        requestSerial += 1;
+        return requestSerial;
+      }
+
+      function isCurrentRequest(requestId) {
+        return requestId === requestSerial;
+      }
 
       function byId(id) {
         return document.getElementById(id);
@@ -268,7 +278,7 @@
         }
       }
 
-      function applyState(state) {
+      function applyState(state, restoreStoredError) {
         if (!state) return;
         byId('base-url').value = state.baseUrl || '';
         byId('card-id').value = state.cardId || '';
@@ -306,15 +316,22 @@
         fillSelect(byId('schedule'), scheduleOptions, state.schedule || 'manual');
 
         byId('last-sync').textContent = state.lastSyncLabel || 'Not synced yet.';
-        showError(state.lastError || '');
+        if (restoreStoredError !== false) showError(state.lastError || '');
       }
 
-      function onFailure() {
+      function applyLicenceHint(state) {
+        if (!state) return;
+        byId('licence-status').textContent = state.licenceStatus || 'Free plan. Manual sync and Daily are available.';
+      }
+
+      function onFailure(requestId) {
+        if (!isCurrentRequest(requestId)) return;
         setBusy(false);
         showError('The add-on could not complete that request. Try again.');
       }
 
-      function onMutation(result) {
+      function onMutation(result, requestId) {
+        if (!isCurrentRequest(requestId)) return;
         setBusy(false);
         if (!result) {
           showError('The add-on could not complete that request. Try again.');
@@ -324,23 +341,26 @@
           // Keep the values the user just typed. Failed saves have not stored them.
           if (result.state) {
             byId('last-sync').textContent = result.state.lastSyncLabel || 'Not synced yet.';
+            applyLicenceHint(result.state);
           }
           showError(result.error || 'The request failed.');
           return;
         }
-        if (result.state) applyState(result.state);
+        if (result.state) applyState(result.state, false);
+        showError('');
         showText('notice', result.message || 'Saved.');
       }
 
       function run(method) {
         if (busy) return;
         var form = readForm();
+        var requestId = beginRequest();
         setBusy(true);
         showText('notice', '');
         showError('');
         var runner = google.script.run
-          .withSuccessHandler(onMutation)
-          .withFailureHandler(onFailure);
+          .withSuccessHandler(function (result) { onMutation(result, requestId); })
+          .withFailureHandler(function () { onFailure(requestId); });
         runner[method](form);
       }
 
@@ -349,7 +369,8 @@
         return question.name + ' (' + suffix + ')';
       }
 
-      function onQuestions(result) {
+      function onQuestions(result, requestId) {
+        if (!isCurrentRequest(requestId)) return;
         setBusy(false);
         if (!result || !result.ok) {
           showError((result && result.error) || 'Metabase did not return a list of questions.');
@@ -378,11 +399,12 @@
 
       function loadQuestions() {
         if (busy) return;
+        var requestId = beginRequest();
         setBusy(true);
         showText('notice', '');
         google.script.run
-          .withSuccessHandler(onQuestions)
-          .withFailureHandler(onFailure)
+          .withSuccessHandler(function (result) { onQuestions(result, requestId); })
+          .withFailureHandler(function () { onFailure(requestId); })
           .loadQuestions(readForm());
       }
 
@@ -408,13 +430,16 @@
         if (byId('licence-key').value) byId('remove-licence').checked = false;
       });
 
+      var loadId = beginRequest();
       setBusy(true);
       google.script.run
         .withSuccessHandler(function (state) {
+          if (!isCurrentRequest(loadId)) return;
           applyState(state);
           setBusy(false);
         })
         .withFailureHandler(function () {
+          if (!isCurrentRequest(loadId)) return;
           setBusy(false);
           showError('The add-on could not load. Close the sidebar and open it again.');
         })
