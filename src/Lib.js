@@ -38,7 +38,7 @@ var SCHEDULE_OPTIONS = [
 ];
 
 var LICENCE_CONFIG = {
-  endpoint: 'https://metabase-to-sheets.vercel.app/api/licence',
+  endpoint: 'https://metabase-to-sheets.example-subdomain.workers.dev/api/licence',
   freeSavedSyncLimit: 1,
   freeSchedule: 'daily',
   proSchedule: 'hourly',

@@ -43,7 +43,7 @@ async function retrieveSubscription(stripe, id) {
 }
 
 async function verifyCheckoutSession({ stripe, sessionId, env }) {
-  const values = env || process.env;
+  const values = env || {};
   if (!configured(values)) return rejected('payments not configured');
   if (typeof sessionId !== 'string' || !/^cs_[A-Za-z0-9_]+$/.test(sessionId) || sessionId.length > 200) {
     return rejected('invalid checkout session');

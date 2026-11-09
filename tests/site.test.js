@@ -23,12 +23,17 @@ test('static output contains only public site assets and no server secrets or ba
 });
 
 test('public pages expose privacy, terms, support, pricing, and accessible metadata', () => {
+  const host = 'https://metabase-to-sheets.example-subdomain.workers.dev';
   for (const page of ['index', 'privacy', 'terms', 'support', 'pricing', 'success']) {
     const html = read(`site/${page}.html`);
     assert.match(html, /<title>/, page);
     assert.match(html, /name="description"/, page);
     assert.match(html, /property="og:image"/, page);
     assert.match(html, /data-canonical/, page);
+    const pagePath = page === 'index' ? '/' : `/${page}`;
+    assert.ok(html.includes(`href="${host}${pagePath}"`), page);
+    assert.ok(html.includes(`content="${host}${pagePath}"`), page);
+    assert.ok(html.includes(`content="${host}/assets/og.svg"`), page);
     assert.match(html, /href="\/(privacy|support|terms|pricing)"/, page);
   }
   assert.match(read('site/index.html'), /href="\/privacy"/);
@@ -42,6 +47,8 @@ test('public pages expose privacy, terms, support, pricing, and accessible metad
   assert.match(read('site/privacy.html'), /24 hours/);
   assert.match(read('site/privacy.html'), /7 days/);
   assert.match(read('site/pricing.html'), /Price TBC/);
+  assert.ok(read('site/robots.txt').includes(`${host}/sitemap.xml`));
+  assert.ok(read('site/sitemap.xml').includes(host));
 });
 
 test('site design keeps the requested row-and-cell visual system', () => {
@@ -54,19 +61,13 @@ test('site design keeps the requested row-and-cell visual system', () => {
   assert.match(read('site/index.html'), /sheet-illustration/);
 });
 
-test('Vercel routes keep API functions outside the static rewrites', () => {
-  const config = JSON.parse(read('vercel.json'));
-  const destinations = config.rewrites.map((item) => item.destination);
-  assert.equal(config.framework, null);
-  assert.equal(config.outputDirectory, 'site');
-  assert.equal(destinations.some((destination) => destination.startsWith('/api/')), false);
-  assert.equal(destinations.every((destination) => !destination.startsWith('/site/')), true);
-  assert.equal(destinations.includes('/index.html'), true);
-  assert.equal(destinations.includes('/success.html'), true);
-  assert.deepEqual(fs.readdirSync(path.join(root, 'api')).sort(), [
-    'licence.js',
-    'payment-link.js',
-    'success-session.js',
-    'webhook.js',
-  ]);
+test('Workers Static Assets routes only API paths through the Worker', () => {
+  const config = read('wrangler.toml');
+  assert.match(config, /compatibility_date = "2026-11-09"/);
+  assert.match(config, /directory = "\.\/site\/"/);
+  assert.match(config, /binding = "ASSETS"/);
+  assert.match(config, /run_worker_first = \["\/api\/\*"\]/);
+  assert.equal(fs.existsSync(path.join(root, 'vercel.json')), false);
+  assert.equal(fs.existsSync(path.join(root, 'api')), false);
+  assert.match(read('src/Lib.js'), /example-subdomain\.workers\.dev\/api\/licence/);
 });

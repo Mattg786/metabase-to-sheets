@@ -20,7 +20,7 @@ This file records the current source facts before the launch site and licence fl
 
 ## Data sharing and retention boundaries
 
-The launch code sends only the licence key to the configured Vercel licence endpoint. The licence API sends no sheet data or Metabase credentials to Stripe. Stripe stores the subscription, payment, and licence metadata needed to verify the product. Vercel receives the licence request and may retain hosting request logs under its service controls. The site will link to support at `mattgalea@mail.grokbot.com`. Support may need information Matt chooses to provide. Humans do not read data except with support consent, for security work, or when required by law. The product does not sell data or use it for advertising.
+The launch code sends only the licence key to the configured Cloudflare Worker licence endpoint. The licence API sends no sheet data or Metabase credentials to Stripe. Stripe stores the subscription, payment, and licence metadata needed to verify the product. Cloudflare receives the licence request and may retain hosting request logs under its service controls. The site links to support at `mattgalea@mail.grokbot.com`. Support may need information Matt chooses to provide. Humans do not read data except with support consent, for security work, or when required by law. The product does not sell data or use it for advertising.
 
 ## Privacy claim and source boundary
 

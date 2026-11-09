@@ -4,7 +4,7 @@ A Google Sheets Editor add-on that copies the results of one saved Metabase ques
 
 The sync is read-only. Data moves from one Metabase instance into the active spreadsheet. Nothing is written back to Metabase.
 
-This repository contains the Apps Script project and a deployable static launch site with Vercel Node serverless functions. It is not published on the Google Workspace Marketplace.
+This repository contains the Apps Script project and a static launch site with a Cloudflare Worker for the licence and payment API. It is not published on the Google Workspace Marketplace.
 
 ## What you do in the sheet
 
@@ -68,13 +68,13 @@ src/appsscript.json    Apps Script manifest
 src/Lib.js             Validation, Metabase calls, sheet writing, schedule
 src/Main.js            Menu and functions called by the sidebar
 src/Sidebar.html       Sidebar UI
-api/                   Vercel Node serverless licence, payment, and webhook entrypoints
-server/_lib/           Shared Node request, Stripe, licence, and webhook utilities
+worker/                Cloudflare Worker API routes
+server/_lib/           Shared Stripe REST, licence, checkout, and webhook logic
 site/                  Static launch pages, styles, sitemap, and OG asset
-vercel.json            Static route and serverless function configuration
+wrangler.toml          Worker and Static Assets configuration
 docs/SITE-DESIGN.md    Launch site design decisions
 docs/PRIVACY-EVIDENCE.md Source trace for the privacy statement
-docs/PAYMENTS.md      Stripe setup, limits, and hosting blocker
+docs/PAYMENTS.md      Cloudflare hosting and Stripe setup
 docs/OFFICIAL-SOURCES.md Dated official source record
 .clasp.json.example    Copy to .clasp.json locally. Do not commit .clasp.json.
 tests/                 Node tests with a mocked Metabase API
@@ -85,6 +85,7 @@ tests/                 Node tests with a mocked Metabase API
 ## Tests
 
 ```bash
+npm ci
 npm test
 npm run build:site
 ```
@@ -93,7 +94,7 @@ The tests mock Metabase and Stripe responses, including invalid and overlong lic
 
 ## Website deployment shape
 
-The Vercel project root is this repository. `vercel.json` explicitly selects the Other framework, sets `site` as the output directory, and rewrites `/`, `/privacy`, `/terms`, `/support`, `/pricing`, and `/success` to files at that output root. Only `site/` is served statically. Root `api/*.js` files remain Node functions, and shared server utilities live under `server/` outside the function-entrypoint directory. `npm run build:site` checks the required static files. Set the approved public base URL in `site/site-config.js` before another host is used. Do not deploy the paid product to the current Vercel Hobby team. See [docs/PAYMENTS.md](docs/PAYMENTS.md).
+Cloudflare Workers Static Assets serves `site/`; `worker/index.mjs` handles `/api/licence`, `/api/webhook`, `/api/payment-link`, and `/api/success-session`. `wrangler.toml` runs the Worker first only for `/api/*` and leaves static assets on the asset-first path. The placeholder host in the site metadata and Apps Script licence URL must be replaced together before production. See [docs/PAYMENTS.md](docs/PAYMENTS.md) and [docs/HANDOFF-CLOUDFLARE-FINAL-v1.md](docs/HANDOFF-CLOUDFLARE-FINAL-v1.md).
 
 ## Test install
 

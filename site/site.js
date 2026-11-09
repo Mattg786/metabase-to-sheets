@@ -2,7 +2,14 @@
 
 const siteConfig = window.METABASE_TO_SHEETS_CONFIG || { baseUrl: window.location.origin };
 const canonical = document.querySelector('[data-canonical]');
-if (canonical && siteConfig.baseUrl) canonical.href = `${siteConfig.baseUrl}${window.location.pathname}`;
+const ogUrl = document.querySelector('meta[property="og:url"]');
+const ogImage = document.querySelector('meta[property="og:image"]');
+if (siteConfig.baseUrl) {
+  const pageUrl = `${siteConfig.baseUrl}${window.location.pathname}`;
+  if (canonical) canonical.href = pageUrl;
+  if (ogUrl) ogUrl.content = pageUrl;
+  if (ogImage) ogImage.content = `${siteConfig.baseUrl}/assets/og.svg`;
+}
 
 function showStatus(message, isError) {
   const box = document.querySelector('[data-status]');

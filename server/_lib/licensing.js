@@ -1,15 +1,16 @@
 'use strict';
 
-const crypto = require('node:crypto');
-
 const LICENCE_METADATA_KEY = 'metabase_sheets_licence';
 const LICENCE_PREFIX = 'mts_';
 const TOKEN_BYTES = 32;
 const MAX_LICENCE_LENGTH = 160;
 
 function generateLicenceKey(subscriptionId, randomBytes) {
-  const bytes = (randomBytes || crypto.randomBytes)(TOKEN_BYTES).toString('base64url');
-  return `${LICENCE_PREFIX}${subscriptionId}_${bytes}`;
+  const bytes = (randomBytes || ((size) => crypto.getRandomValues(new Uint8Array(size))))(TOKEN_BYTES);
+  let binary = '';
+  for (const byte of bytes) binary += String.fromCharCode(byte);
+  const encoded = btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  return `${LICENCE_PREFIX}${subscriptionId}_${encoded}`;
 }
 
 function isValidLicenceKey(value) {
@@ -20,10 +21,14 @@ function isValidLicenceKey(value) {
 }
 
 function timingSafeEqual(left, right) {
-  const a = Buffer.from(String(left || ''), 'utf8');
-  const b = Buffer.from(String(right || ''), 'utf8');
-  if (a.length !== b.length) return false;
-  return crypto.timingSafeEqual(a, b);
+  const a = new TextEncoder().encode(String(left || ''));
+  const b = new TextEncoder().encode(String(right || ''));
+  let difference = a.length ^ b.length;
+  const length = Math.max(a.length, b.length);
+  for (let index = 0; index < length; index += 1) {
+    difference |= (a[index] || 0) ^ (b[index] || 0);
+  }
+  return difference === 0;
 }
 
 function subscriptionIdFromLicenceKey(key) {
@@ -47,7 +52,7 @@ function inactive(reason, extra) {
 }
 
 async function checkLicence({ key, stripe, env }) {
-  const values = env || process.env;
+  const values = env || {};
   if (!values.STRIPE_SECRET_KEY || !values.STRIPE_PRICE_ID) {
     return inactive('licensing not configured');
   }

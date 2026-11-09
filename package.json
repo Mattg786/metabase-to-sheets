@@ -5,12 +5,14 @@
   "description": "Google Sheets Editor add-on that copies a Metabase question into the active spreadsheet.",
   "scripts": {
     "test": "node --test",
-    "build:site": "node scripts/build-site.js"
+    "build:site": "node scripts/build-site.js",
+    "dev": "wrangler dev --local --ip 127.0.0.1",
+    "deploy:dry-run": "wrangler deploy --dry-run"
   },
   "engines": {
     "node": ">=20"
   },
-  "dependencies": {
-    "stripe": "23.0.0"
+  "devDependencies": {
+    "wrangler": "4.158.0"
   }
 }
