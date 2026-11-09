@@ -1,55 +1,87 @@
 'use strict';
 
-const siteConfig = window.METABASE_TO_SHEETS_CONFIG || { baseUrl: window.location.origin };
-const canonical = document.querySelector('[data-canonical]');
-const ogUrl = document.querySelector('meta[property="og:url"]');
-const ogImage = document.querySelector('meta[property="og:image"]');
-if (siteConfig.baseUrl) {
-  const pageUrl = `${siteConfig.baseUrl}${window.location.pathname}`;
-  if (canonical) canonical.href = pageUrl;
-  if (ogUrl) ogUrl.content = pageUrl;
-  if (ogImage) ogImage.content = `${siteConfig.baseUrl}/assets/og.svg`;
+// Maps a /api/success-session response (or a failed request) to what the page shows.
+// The API is unchanged. This only chooses the wording.
+function describeSession(sessionId, data) {
+  if (!sessionId) {
+    return {
+      tone: 'error',
+      message: 'This page shows a Pro licence key after payment. This link has no payment reference, so there is no key to show.',
+    };
+  }
+  if (!data) {
+    return {
+      tone: 'error',
+      message: 'The payment check could not reach the server. Check your connection, then refresh this page.',
+      retry: true,
+    };
+  }
+  if (data.verified && typeof data.licenceKey === 'string' && data.licenceKey) {
+    return { tone: 'success', message: 'Payment confirmed. Your key is below.', licenceKey: data.licenceKey };
+  }
+  if (data.pending) {
+    return {
+      tone: 'pending',
+      message: 'Your payment is still being confirmed. Refresh this page in a minute to see your key.',
+      retry: true,
+    };
+  }
+  if (data.reason === 'invalid checkout session') {
+    return {
+      tone: 'error',
+      message: 'This link has a payment reference the server does not recognise. Use the link Stripe opened after payment.',
+    };
+  }
+  if (data.reason === 'payments not configured') {
+    return { tone: 'error', message: 'Pro is not on sale yet, so there is no key to show.' };
+  }
+  return { tone: 'error', message: 'This payment could not be confirmed, so no key is shown.' };
 }
 
-function showStatus(message, isError) {
-  const box = document.querySelector('[data-status]');
-  if (!box) return;
-  box.textContent = message;
-  box.classList.toggle('error', Boolean(isError));
-  box.classList.remove('hidden');
+function renderSession(view) {
+  const status = document.querySelector('[data-status]');
+  status.className = `status-box is-${view.tone}`;
+  status.textContent = '';
+  const text = document.createElement('p');
+  text.textContent = view.message;
+  status.appendChild(text);
+  if (view.retry) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'button secondary';
+    button.textContent = 'Refresh';
+    button.addEventListener('click', () => window.location.reload());
+    status.appendChild(button);
+  }
+  if (view.licenceKey) {
+    document.querySelector('[data-licence-key]').textContent = view.licenceKey;
+    document.querySelector('[data-key-panel]').classList.remove('hidden');
+  }
 }
 
-async function loadPaymentLink() {
-  const link = document.querySelector('[data-payment-link]');
-  if (!link) return;
+async function copyKey() {
+  const key = document.querySelector('[data-licence-key]');
+  const note = document.querySelector('[data-copy-status]');
   try {
-    const response = await fetch('/api/payment-link', { cache: 'no-store', credentials: 'omit' });
-    const data = await response.json();
-    if (data.configured && typeof data.url === 'string' && /^https:\/\/buy\.stripe\.com\//.test(data.url)) {
-      link.href = data.url;
-      link.removeAttribute('aria-disabled');
-      link.classList.remove('hidden');
-      const note = document.querySelector('[data-payment-note]');
-      if (note) note.textContent = 'Stripe opens in a separate hosted payment page.';
-    } else {
-      showStatus('The payment link is not configured yet. Price and checkout remain pending approval.', false);
-    }
+    await navigator.clipboard.writeText(key.textContent);
+    note.textContent = 'Copied.';
   } catch (error) {
-    showStatus('The payment link could not be checked. Try again later.', true);
+    const range = document.createRange();
+    range.selectNodeContents(key);
+    const selection = window.getSelection();
+    selection.removeAllRanges();
+    selection.addRange(range);
+    note.textContent = 'Copy is blocked here. The key is selected, so press Ctrl+C or Cmd+C.';
   }
 }
 
 async function verifySuccess() {
-  const status = document.querySelector('[data-status]');
-  const keyBox = document.querySelector('[data-licence-key]');
-  if (!status || !keyBox) return;
   const sessionId = new URLSearchParams(window.location.search).get('session_id');
   if (!sessionId) {
-    showStatus('No Stripe checkout session was supplied. Return to pricing and try again.', true);
+    renderSession(describeSession(''));
     return;
   }
-
-  showStatus('Checking the paid session and waiting for webhook fulfilment.', false);
+  let data = null;
   try {
     const response = await fetch('/api/success-session', {
       method: 'POST',
@@ -58,20 +90,27 @@ async function verifySuccess() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ session_id: sessionId }),
     });
-    const data = await response.json();
-    if (data.verified && typeof data.licenceKey === 'string') {
-      status.textContent = 'Your paid subscription is verified. Save this key in the Google Sheets sidebar.';
-      keyBox.textContent = data.licenceKey;
-      keyBox.classList.remove('hidden');
-      return;
-    }
-    showStatus(data.pending
-      ? 'Payment was received. The signed webhook has not finished assigning the licence yet. Refresh this page shortly.'
-      : (data.reason || 'The session could not be verified.'), Boolean(!data.pending));
+    data = await response.json();
   } catch (error) {
-    showStatus('The verification request failed. Refresh this page shortly.', true);
+    data = null;
   }
+  renderSession(describeSession(sessionId, data));
 }
 
-if (document.querySelector('[data-payment-link]')) loadPaymentLink();
-if (document.querySelector('[data-licence-key]')) verifySuccess();
+if (typeof window !== 'undefined' && typeof document !== 'undefined') {
+  const siteConfig = window.METABASE_TO_SHEETS_CONFIG || { baseUrl: window.location.origin };
+  const canonical = document.querySelector('[data-canonical]');
+  const ogUrl = document.querySelector('meta[property="og:url"]');
+  const ogImage = document.querySelector('meta[property="og:image"]');
+  if (siteConfig.baseUrl) {
+    const pageUrl = `${siteConfig.baseUrl}${window.location.pathname}`;
+    if (canonical) canonical.href = pageUrl;
+    if (ogUrl) ogUrl.content = pageUrl;
+    if (ogImage) ogImage.content = `${siteConfig.baseUrl}/assets/og.png`;
+  }
+  const copyButton = document.querySelector('[data-copy-key]');
+  if (copyButton) copyButton.addEventListener('click', copyKey);
+  if (document.querySelector('[data-licence-key]')) verifySuccess();
+}
+
+if (typeof module !== 'undefined' && module.exports) module.exports = { describeSession };

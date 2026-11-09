@@ -1,5 +1,86 @@
 <!doctype html>
 <html lang="en-GB">
-  <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Support | Metabase to Sheets</title><meta name="description" content="Set up and troubleshoot Metabase to Sheets."><meta property="og:title" content="Support | Metabase to Sheets"><meta property="og:description" content="Setup and troubleshooting for Metabase to Sheets."><meta property="og:type" content="website"><meta property="og:image" content="https://metabase-to-sheets.matthew-k-galea.workers.dev/assets/og.svg"><meta property="og:url" content="https://metabase-to-sheets.matthew-k-galea.workers.dev/support"><link rel="canonical" data-canonical href="https://metabase-to-sheets.matthew-k-galea.workers.dev/support"><link rel="stylesheet" href="/styles.css"></head>
-  <body><header class="site-header page-width"><a class="brand" href="/"><span class="brand-mark" aria-hidden="true"></span>Metabase to Sheets</a><nav class="site-nav" aria-label="Primary navigation"><a href="/pricing">Pricing</a><a href="/privacy">Privacy</a><a href="/terms">Terms</a></nav></header><main><section class="page-hero"><div class="page-width"><p class="eyebrow">Support</p><h1>Start with one question and one sheet.</h1><p>Marketplace publication is pending. There is no install link yet. Use the private Apps Script setup described in the repository README.</p></div></section><article class="prose page-width"><h2>Before your first sync</h2><ol><li>Create a Metabase API key in Administration, Settings, Authentication, API keys.</li><li>Find the saved question ID in a URL such as <code>/question/42</code>.</li><li>Open the add-on sidebar from Extensions, Metabase to Sheets, Open.</li><li>Enter the HTTPS Metabase site URL, API key, question ID, and target sheet.</li><li>Choose Manual only or Daily, then save. Sync now runs immediately.</li></ol><h2>Schedules and Pro</h2><p>The free plan has one saved sync per spreadsheet. Manual sync and Daily are available without licensing. Hourly and Every 6 hours require a verified Pro licence. The sidebar checks the licence before saving a restricted schedule and again before a scheduled run.</p><h2>Common errors</h2><ul><li><strong>Wrong key:</strong> Metabase returned 401. Create or paste a key with access to the question.</li><li><strong>No access:</strong> Metabase returned 403. Ask a Metabase administrator for permission to the question.</li><li><strong>Missing question:</strong> Metabase returned 404. Check the question ID and site URL.</li><li><strong>Unreachable host:</strong> confirm the HTTPS URL and network access. The sheet keeps its previous cells.</li><li><strong>Licence not active:</strong> check the key and the Stripe subscription. The price must be the configured product price.</li></ul><h2>Stop a schedule</h2><p>Choose Manual only and save. To remove stored access, select Remove saved API key and save. A cleared key turns off the Metabase schedule. Licence keys can be cleared in the same sidebar field. Clearing a licence key removes its per-user key and cache. These actions do not delete cells already synced.</p><h2>Google account access</h2><p>Review or remove the account connection at <a href="https://myaccount.google.com/connections">Google Account connections</a>. Removing the connection or uninstalling the add-on does not delete cells already synced.</p><h2>Contact</h2><p>Email <a href="mailto:mattgalea@mail.grokbot.com">mattgalea@mail.grokbot.com</a>. No response time is promised.</p></article></main><footer class="site-footer"><span>Metabase to Sheets</span><span class="footer-links"><a href="/privacy">Privacy</a><a href="/terms">Terms</a><a href="mailto:mattgalea@mail.grokbot.com">Contact</a></span></footer><script src="/site-config.js" defer></script><script src="/site.js" defer></script></body>
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Support | Metabase to Sheets</title>
+    <meta name="description" content="Set up Metabase to Sheets, choose a safe Metabase API key, fix common errors, and contact support.">
+    <meta property="og:title" content="Support | Metabase to Sheets">
+    <meta property="og:description" content="Set up Metabase to Sheets, choose a safe Metabase API key, fix common errors, and contact support.">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://metabase-to-sheets.matthew-k-galea.workers.dev/support">
+    <meta property="og:image" content="https://metabase-to-sheets.matthew-k-galea.workers.dev/assets/og.png">
+    <meta property="og:image:type" content="image/png">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta property="og:image:alt" content="Metabase to Sheets. A saved Metabase question written into a Google Sheet from cell A1.">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="theme-color" content="#F6F9FC">
+    <link rel="canonical" data-canonical href="https://metabase-to-sheets.matthew-k-galea.workers.dev/support">
+    <link rel="stylesheet" href="/styles.css">
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Skip to content</a>
+    <header class="site-header">
+      <div class="page-width header-inner">
+        <a class="brand" href="/"><span class="brand-mark" aria-hidden="true"></span>Metabase to Sheets</a>
+        <nav class="site-nav" aria-label="Primary"><a href="/pricing">Pricing</a><a href="/support" aria-current="page">Support</a><a href="/privacy">Privacy</a><a href="/terms">Terms</a></nav>
+      </div>
+      <p class="status-line"><span class="page-width">Not on the Google Workspace Marketplace yet. Setup is manual, using the <a href="https://github.com/Mattg786/metabase-to-sheets#test-install">setup guide</a>.</span></p>
+    </header>
+      <section class="page-hero">
+        <div class="page-width">
+          <h1>Support</h1>
+          <p class="lede">Setup steps, common errors, and how to get help.</p>
+        </div>
+      </section>
+      <div class="page-width">
+        <article class="prose">
+          <h2 id="setup">Set up the add-on</h2>
+          <p>The add-on is not on the Marketplace yet, so you install it from the source code. The <a href="https://github.com/Mattg786/metabase-to-sheets#test-install">setup guide in the README</a> walks through it with clasp and a test sheet.</p>
+          <ol>
+            <li>Create a Metabase API key in Admin, Settings, Authentication, API keys.</li>
+            <li>Find the saved question ID in a URL such as <code>/question/42</code>.</li>
+            <li>In the sheet, choose Extensions, Metabase to Sheets, Open.</li>
+            <li>Enter the https Metabase address, the API key, the question ID, and the tab to write to.</li>
+            <li>Choose Manual only or Daily, then Save. Sync now runs straight away.</li>
+          </ol>
+          <h2 id="api-key">Choose a safe API key</h2>
+          <p>Metabase gives each API key the permissions of the group it belongs to. Create a group that can view only the collections holding the questions you sync, and put the key in that group. Do not use a key in the Administrators group. If a key leaks, revoke it in Metabase and save a new one in the sidebar. See <a href="https://www.metabase.com/docs/latest/people-and-groups/api-keys">Metabase API keys</a>.</p>
+          <h2 id="schedules">Schedules and Pro</h2>
+          <p>Free includes Sync now, Manual only, and Daily. Pro adds Hourly and Every 6 hours. Both keep one saved sync per spreadsheet. The add-on checks the licence when you save a Pro schedule and again before each scheduled run.</p>
+          <h2 id="errors">Common errors</h2>
+          <dl class="errors">
+            <dt>Metabase rejected the key (401)</dt><dd>Create a new key, or paste the key again. The sheet is not changed.</dd>
+            <dt>No access to the question (403)</dt><dd>Ask a Metabase admin to give the key's group view access to that question's collection.</dd>
+            <dt>Question not found (404)</dt><dd>Check the question ID and the site address.</dd>
+            <dt>Metabase cannot be reached</dt><dd>Check the https address and that Metabase is reachable from the internet. The sheet keeps its previous cells.</dd>
+            <dt>Too many rows or columns</dt><dd>Results over 100,000 rows or 2,000 columns are refused before the sheet changes. Filter the question in Metabase.</dd>
+            <dt>Licence key not recognised</dt><dd>Copy the key again from your payment confirmation page, with no spaces.</dd>
+          </dl>
+          <h2 id="stop">Stop a schedule or remove keys</h2>
+          <p>Choose Manual only and Save. To remove the Metabase key, tick Remove saved API key and Save. This also turns the schedule off. To remove a licence key, tick Remove saved licence key and Save. None of these delete cells already synced.</p>
+          <p>Review or remove the add-on's access at <a href="https://myaccount.google.com/connections">Google Account connections</a>.</p>
+          <h2 id="contact">Contact support</h2>
+          <p>Email <a href="mailto:mattgalea@mail.grokbot.com">mattgalea@mail.grokbot.com</a>. Include:</p>
+          <ul>
+            <li>what you pressed: Save, Sync now, or a scheduled run</li>
+            <li>the exact message the sidebar shows</li>
+            <li>roughly when it happened</li>
+            <li>your Metabase version, if you know it</li>
+          </ul>
+          <p>Never send your API key or licence key. No response time is promised.</p>
+          <h2 id="source">Source code</h2>
+          <p>The add-on and this website are open source at <a href="https://github.com/Mattg786/metabase-to-sheets">github.com/Mattg786/metabase-to-sheets</a>. You can read exactly what runs before you install it.</p>
+        </article>
+      </div>
+    </main>
+    <footer class="site-footer">
+      <div class="page-width footer-inner">
+        <p>Metabase to Sheets copies one saved Metabase question into a Google Sheet.</p>
+        <nav class="footer-links" aria-label="Footer"><a href="/pricing">Pricing</a><a href="/support">Support</a><a href="/privacy">Privacy</a><a href="/terms">Terms</a><a href="https://github.com/Mattg786/metabase-to-sheets">Source code</a><a href="mailto:mattgalea@mail.grokbot.com">Email support</a></nav>
+      </div>
+    </footer>
+    <script src="/site-config.js" defer></script><script src="/site.js" defer></script>
+  </body>
 </html>

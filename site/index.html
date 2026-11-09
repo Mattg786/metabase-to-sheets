@@ -4,58 +4,85 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Metabase to Sheets</title>
-    <meta name="description" content="Copy one saved Metabase question into a Google Sheet, then keep that one sheet current on a schedule.">
+    <meta name="description" content="A Google Sheets add-on that copies one saved Metabase question into a sheet, by hand or on a schedule.">
     <meta property="og:title" content="Metabase to Sheets">
-    <meta property="og:description" content="A small Google Sheets add-on for moving one saved Metabase question into cells.">
+    <meta property="og:description" content="A Google Sheets add-on that copies one saved Metabase question into a sheet, by hand or on a schedule.">
     <meta property="og:type" content="website">
-    <meta property="og:image" content="https://metabase-to-sheets.matthew-k-galea.workers.dev/assets/og.svg">
+    <meta property="og:url" content="https://metabase-to-sheets.matthew-k-galea.workers.dev/">
+    <meta property="og:image" content="https://metabase-to-sheets.matthew-k-galea.workers.dev/assets/og.png">
+    <meta property="og:image:type" content="image/png">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta property="og:image:alt" content="Metabase to Sheets. A saved Metabase question written into a Google Sheet from cell A1.">
+    <meta name="twitter:card" content="summary_large_image">
     <meta name="theme-color" content="#F6F9FC">
-    <link rel="canonical" data-canonical href="https://metabase-to-sheets.matthew-k-galea.workers.dev/"><meta property="og:url" content="https://metabase-to-sheets.matthew-k-galea.workers.dev/">
+    <link rel="canonical" data-canonical href="https://metabase-to-sheets.matthew-k-galea.workers.dev/">
     <link rel="stylesheet" href="/styles.css">
   </head>
   <body>
-    <header class="site-header page-width">
-      <a class="brand" href="/"><span class="brand-mark" aria-hidden="true"></span>Metabase to Sheets</a>
-      <nav class="site-nav" aria-label="Primary navigation">
-        <a href="/pricing">Pricing</a><a href="/support">Support</a><a href="/privacy">Privacy</a>
-      </nav>
+    <a class="skip-link" href="#main">Skip to content</a>
+    <header class="site-header">
+      <div class="page-width header-inner">
+        <a class="brand" href="/" aria-current="page"><span class="brand-mark" aria-hidden="true"></span>Metabase to Sheets</a>
+        <nav class="site-nav" aria-label="Primary"><a href="/pricing">Pricing</a><a href="/support">Support</a><a href="/privacy">Privacy</a><a href="/terms">Terms</a></nav>
+      </div>
+      <p class="status-line"><span class="page-width">Not on the Google Workspace Marketplace yet. Setup is manual, using the <a href="https://github.com/Mattg786/metabase-to-sheets#test-install">setup guide</a>.</span></p>
     </header>
-    <main>
+    <main id="main">
       <section class="hero page-width">
-        <div>
-          <p class="eyebrow">One saved question. One sheet.</p>
-          <h1>Keep a useful Metabase result close to the work.</h1>
-          <p class="lede">Metabase to Sheets copies one saved question into your current Google Sheet. Use a manual sync or a Daily schedule. Hourly syncs are planned for Pro.</p>
-          <div class="actions"><a class="button" href="/support">Set up the add-on</a><a class="button secondary" href="/pricing">See pricing</a></div>
-          <p class="small-note">Google Workspace Marketplace publication pending. This page does not provide an install link.</p>
+        <div class="hero-copy">
+          <h1>Copy a saved Metabase question into Google Sheets</h1>
+          <p class="lede">The add-on reads the result of one saved question and writes it into a sheet tab, starting at cell A1. Run it with Sync now or on a Daily schedule. Pro adds Hourly and Every 6 hours.</p>
+          <div class="actions"><a class="button" href="https://github.com/Mattg786/metabase-to-sheets#test-install">Read the setup guide</a><a class="button secondary" href="/pricing">See pricing</a></div>
         </div>
-        <div class="sheet-illustration" aria-label="Illustration of a saved Metabase question flowing into spreadsheet cells">
-          <div class="question-panel"><p class="panel-label">Saved question</p><strong>Orders by region</strong><p>Metabase result copied into the selected sheet.</p></div>
-          <div class="sheet">
-            <div class="sheet-title">Results</div>
-            <div class="sheet-row header"><span>Region</span><span>Orders</span><span>Updated</span></div>
-            <div class="sheet-row"><span>North</span><span>128</span><span>Today</span></div>
-            <div class="sheet-row"><span>South</span><span>94</span><span>Today</span></div>
-            <div class="sheet-row"><span>West</span><span>61</span><span>Today</span></div>
-            <div class="sheet-row"><span>East</span><span>43</span><span>Today</span></div>
+        <!-- TODO(dev): replace this example with a real screenshot of the sidebar in a test sheet once one exists. Do not swap in a rendered mock. -->
+        <figure class="flow">
+          <div class="flow-question">
+            <p class="flow-source">Metabase saved question 42</p>
+            <p class="flow-name">Orders by region</p>
           </div>
-        </div>
+          <div class="flow-arrow" aria-hidden="true"></div>
+          <div class="cells-wrap">
+            <table class="cells">
+              <caption class="visually-hidden">Example sheet after a sync</caption>
+              <thead><tr><td class="corner"></td><th scope="col">A</th><th scope="col">B</th><th scope="col">C</th></tr></thead>
+              <tbody>
+                <tr class="header-row"><th scope="row">1</th><td class="active-cell">Region</td><td>Orders</td><td>Revenue</td></tr>
+                <tr><th scope="row">2</th><td>North</td><td class="num">128</td><td class="num">9420.50</td></tr>
+                <tr><th scope="row">3</th><td>South</td><td class="num">94</td><td class="num">7115.00</td></tr>
+                <tr><th scope="row">4</th><td>West</td><td class="num">61</td><td class="num">4380.25</td></tr>
+                <tr><th scope="row">5</th><td>East</td><td class="num">43</td><td class="num">3012.75</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <figcaption>Example data. Column names fill row 1 and the rows follow, starting at A1.</figcaption>
+        </figure>
       </section>
-      <section class="section intro">
+      <section class="section band">
         <div class="page-width">
-          <div class="section-heading"><h2>A direct path from question to cells.</h2><p>The add-on uses your Metabase API key to request the JSON result of one saved question. It writes the headers and rows into the sheet you choose.</p></div>
-          <div class="steps">
-            <article class="step"><div class="step-number">01</div><h3>Choose the question</h3><p>Enter the question ID or load the questions your key can list.</p></article>
-            <article class="step"><div class="step-number">02</div><h3>Choose the sheet</h3><p>Pick the tab where the result should start at cell A1.</p></article>
-            <article class="step"><div class="step-number">03</div><h3>Choose the pace</h3><p>Sync now, save a Daily schedule, or use Hourly with a verified Pro licence.</p></article>
-          </div>
+          <h2>How to set it up</h2>
+          <ol class="steps">
+            <li><h3>Create a Metabase API key</h3><p>In Metabase, open Admin, Settings, Authentication, API keys. Put the key in a group that can only view the questions you want to sync.</p></li>
+            <li><h3>Open the sidebar</h3><p>In the sheet, choose Extensions, Metabase to Sheets, Open. Enter your Metabase address, the key, and the question ID from a URL such as /question/42.</p></li>
+            <li><h3>Choose a tab and a schedule</h3><p>Pick the tab to write to, then Manual only or Daily. Save, then press Sync now to check it works.</p></li>
+          </ol>
         </div>
       </section>
-      <section class="section page-width">
-        <div class="plain-grid"><div><h2>Small scope by design.</h2></div><div><p>The add-on reads the Metabase result and writes to the selected current spreadsheet. It does not write back to Metabase. Your Metabase API key stays in Google Apps Script UserProperties.</p><p><a href="/privacy">Read the privacy statement</a> or <a href="/support">follow the support guide</a>.</p></div></div>
+      <section class="section page-width split">
+        <h2>What it reads and writes</h2>
+        <div class="split-body">
+          <p>It reads one saved question from your Metabase and writes to the spreadsheet you have open. It never writes back to Metabase. Each sync replaces only the cells it wrote last time, so your own cells outside that block stay as they are.</p>
+          <p>Your API key is saved to your Google account for this add-on. It is not written into the sheet, so other editors cannot see it. Sheet data never passes through our servers.</p>
+          <p><a href="/privacy">Read the privacy statement</a> or <a href="https://github.com/Mattg786/metabase-to-sheets">read the source code</a>.</p>
+        </div>
       </section>
     </main>
-    <footer class="site-footer"><span>Metabase to Sheets</span><span class="footer-links"><a href="/privacy">Privacy</a><a href="/terms">Terms</a><a href="/support">Support</a><a href="mailto:mattgalea@mail.grokbot.com">Contact</a></span></footer>
+    <footer class="site-footer">
+      <div class="page-width footer-inner">
+        <p>Metabase to Sheets copies one saved Metabase question into a Google Sheet.</p>
+        <nav class="footer-links" aria-label="Footer"><a href="/pricing">Pricing</a><a href="/support">Support</a><a href="/privacy">Privacy</a><a href="/terms">Terms</a><a href="https://github.com/Mattg786/metabase-to-sheets">Source code</a><a href="mailto:mattgalea@mail.grokbot.com">Email support</a></nav>
+      </div>
+    </footer>
     <script src="/site-config.js" defer></script><script src="/site.js" defer></script>
   </body>
 </html>

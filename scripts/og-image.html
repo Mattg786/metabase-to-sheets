@@ -1,0 +1,61 @@
+<!doctype html>
+<!--
+  Source for site/assets/og.png (1200 x 630). Regenerate on macOS with:
+  "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" --headless --disable-gpu --hide-scrollbars \
+    --force-device-scale-factor=1 --window-size=1200,630 --screenshot=site/assets/og.png "file://$PWD/scripts/og-image.html"
+  Example data only. No users, ratings, or testimonials.
+-->
+<html lang="en-GB">
+  <head>
+    <meta charset="utf-8">
+    <style>
+      html, body { margin: 0; width: 1200px; height: 630px; overflow: hidden; }
+      body {
+        display: grid;
+        grid-template-columns: 520px 1fr;
+        gap: 56px;
+        align-items: center;
+        box-sizing: border-box;
+        padding: 0 72px;
+        background: #f6f9fc;
+        color: #183344;
+        font-family: "Avenir Next", "Trebuchet MS", Arial, sans-serif;
+      }
+      .brand { display: flex; align-items: center; gap: 14px; font-size: 30px; font-weight: 700; }
+      .mark { width: 26px; height: 26px; border: 4px solid #0a716f; border-radius: 3px; box-sizing: border-box; background: linear-gradient(#0a716f, #0a716f) 0 0 / 50% 50% no-repeat; }
+      h1 { margin: 36px 0 0; font-size: 54px; line-height: 1.1; letter-spacing: -0.02em; }
+      p { margin: 24px 0 0; color: #516b79; font-size: 26px; line-height: 1.4; }
+      .q { display: inline-block; padding: 14px 20px; border: 2px solid #183344; border-radius: 4px; background: #fff; font-size: 24px; font-weight: 700; }
+      .q small { display: block; color: #516b79; font-size: 17px; font-weight: 500; }
+      .arrow { width: 3px; height: 40px; margin: 0 0 0 132px; background: #0a716f; position: relative; }
+      .arrow::after { content: ""; position: absolute; bottom: -2px; left: -6px; width: 12px; height: 12px; border-right: 3px solid #0a716f; border-bottom: 3px solid #0a716f; transform: rotate(45deg); }
+      table { width: 100%; border-collapse: collapse; background: #fff; font-size: 22px; font-variant-numeric: tabular-nums; }
+      th, td { padding: 13px 14px; border: 2px solid #cad8e1; text-align: left; }
+      th, .corner { background: #eef3f7; color: #516b79; font-size: 17px; font-weight: 600; text-align: center; }
+      thead tr > :first-child { width: 44px; }
+      .h td { font-weight: 700; }
+      .a1 { outline: 3px solid #0a716f; outline-offset: -3px; }
+      .n { text-align: right; }
+    </style>
+  </head>
+  <body>
+    <div>
+      <div class="brand"><span class="mark"></span>Metabase to Sheets</div>
+      <h1>Copy a saved Metabase question into Google Sheets</h1>
+      <p>Sync now or on a schedule. Rows start at cell A1.</p>
+    </div>
+    <div>
+      <div class="q"><small>Saved question 42</small>Orders by region</div>
+      <div class="arrow"></div>
+      <table>
+        <thead><tr><td class="corner"></td><th>A</th><th>B</th><th>C</th></tr></thead>
+        <tbody>
+          <tr class="h"><th>1</th><td class="a1">Region</td><td>Orders</td><td>Revenue</td></tr>
+          <tr><th>2</th><td>North</td><td class="n">128</td><td class="n">9420.50</td></tr>
+          <tr><th>3</th><td>South</td><td class="n">94</td><td class="n">7115.00</td></tr>
+          <tr><th>4</th><td>West</td><td class="n">61</td><td class="n">4380.25</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </body>
+</html>

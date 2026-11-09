@@ -441,7 +441,8 @@ test('restricted schedules fail before changing existing settings without Pro', 
   });
   const result = lib.saveSettingsForUser(form({ schedule: 'hourly', licenceKey: '' }), services);
   assert.equal(result.ok, false);
-  assert.match(result.error, /active Pro licence/);
+  assert.match(result.error, /need Pro/);
+  assert.equal(result.proRequired, true);
   assert.equal(services.store.getConfig().schedule, 'daily');
   assert.equal(services.store.getLicenceKey(), '');
 });
@@ -486,9 +487,9 @@ test('an explicit inactive response revokes Pro immediately', () => {
   services.clock = () => new Date('2026-11-11T14:05:00.000Z');
   const revoked = lib.saveSettingsForUser(form({ schedule: 'hourly' }), services);
   assert.equal(revoked.ok, false);
-  assert.equal(revoked.error, 'That Pro subscription is not active.');
+  assert.equal(revoked.error, 'This subscription is not active. Manual sync and Daily still work.');
   assert.equal(revoked.state.licencePlan, 'free');
-  assert.equal(revoked.state.licenceStatus, 'Free plan. That Pro subscription is not active.');
+  assert.equal(revoked.state.licenceStatus, 'Free plan. This subscription is not active. Manual sync and Daily still work.');
   assert.equal(revoked.state.licenceStatus.includes('active Pro subscription verified'), false);
 });
 
@@ -522,14 +523,14 @@ test('a stale active result permits one week of outage without extending the tim
   assert.equal(services.store.getLicenceCache().validActiveAtMs, Date.parse('2026-11-07T14:05:00.000Z'));
 
   services.clock = () => new Date('2026-11-15T14:05:00.000Z');
-  assert.throws(() => lib.runScheduledSyncForUser(services), /could not be verified/);
+  assert.throws(() => lib.runScheduledSyncForUser(services), /could not be checked, so the Pro schedule was not saved/);
 });
 
 test('a failed Pro schedule save does not keep that error after a later successful save', () => {
   const services = harness({ storedKey: API_KEY });
   const failed = lib.saveSettingsForUser(form({ schedule: 'hourly', licenceKey: '' }), services);
   assert.equal(failed.ok, false);
-  assert.equal(failed.error, 'Hourly and Every 6 hours require an active Pro licence. Manual sync and Daily remain available.');
+  assert.equal(failed.error, 'Hourly and Every 6 hours need Pro. Manual sync and Daily still work.');
   assert.equal(services.store.getConfig().schedule, 'manual');
 
   const saved = lib.saveSettingsForUser(form({ schedule: 'daily', licenceKey: '' }), services);
@@ -561,17 +562,17 @@ test('a verified Pro hint refreshes to the current invalid licence result', () =
   const saved = lib.saveSettingsForUser(form({ schedule: 'hourly', licenceKey: LICENCE_KEY }), services);
   assert.equal(saved.ok, true);
   assert.equal(saved.state.licencePlan, 'pro');
-  assert.equal(saved.state.licenceStatus, 'Pro plan. Active Pro subscription verified.');
+  assert.equal(saved.state.licenceStatus, 'Pro. Subscription active.');
 
   const rejected = lib.saveSettingsForUser(form({
     schedule: 'hourly',
     licenceKey: 'not-a-real-licence-key',
   }), services);
   assert.equal(rejected.ok, false);
-  assert.equal(rejected.error, 'Unrecognised licence key.');
+  assert.equal(rejected.error, 'Licence key not recognised. Check it against your payment confirmation.');
   assert.equal(rejected.error.includes('Hourly and Every 6 hours'), false);
   assert.equal(rejected.state.licencePlan, 'free');
-  assert.equal(rejected.state.licenceStatus, 'Free plan. Unrecognised licence key.');
+  assert.equal(rejected.state.licenceStatus, 'Free plan. Licence key not recognised. Check it against your payment confirmation.');
   assert.equal(services.store.getLicenceKey(), LICENCE_KEY);
   assert.equal(services.store.getConfig().schedule, 'hourly');
   assert.equal(services.store.getLicenceCache().access.reason, 'active Pro subscription verified');
@@ -579,7 +580,7 @@ test('a verified Pro hint refreshes to the current invalid licence result', () =
   const again = lib.saveSettingsForUser(form({ schedule: 'hourly', licenceKey: '' }), services);
   assert.equal(again.ok, true);
   assert.equal(again.state.licencePlan, 'pro');
-  assert.equal(again.state.licenceStatus, 'Pro plan. Active Pro subscription verified.');
+  assert.equal(again.state.licenceStatus, 'Pro. Subscription active.');
   assert.equal(Object.prototype.hasOwnProperty.call(again, 'error'), false);
 });
 
@@ -605,10 +606,10 @@ test('an invalid licence on a free schedule does not show the hourly error', () 
     licenceKey: 'not-a-real-licence-key',
   }), services);
   assert.equal(result.ok, false);
-  assert.equal(result.error, 'Unrecognised licence key.');
+  assert.equal(result.error, 'Licence key not recognised. Check it against your payment confirmation.');
   assert.equal(result.error.includes('Hourly'), false);
   assert.equal(result.state.licencePlan, 'free');
-  assert.equal(result.state.licenceStatus, 'Free plan. Unrecognised licence key.');
+  assert.equal(result.state.licenceStatus, 'Free plan. Licence key not recognised. Check it against your payment confirmation.');
   assert.equal(services.store.getLicenceKey(), '');
   assert.equal(services.store.getConfig().schedule, 'daily');
   assert.equal(services.licenceFetchCalls.length, 1);
@@ -618,7 +619,7 @@ test('hourly and every 6 hours without a licence keep the schedule error', () =>
   const services = harness({ storedKey: API_KEY });
   const hourly = lib.saveSettingsForUser(form({ schedule: 'hourly', licenceKey: '' }), services);
   const everySix = lib.saveSettingsForUser(form({ schedule: 'every_6_hours', licenceKey: '' }), services);
-  const expected = 'Hourly and Every 6 hours require an active Pro licence. Manual sync and Daily remain available.';
+  const expected = 'Hourly and Every 6 hours need Pro. Manual sync and Daily still work.';
   assert.equal(hourly.error, expected);
   assert.equal(everySix.error, expected);
   assert.equal(services.licenceFetchCalls.length, 0);
@@ -639,10 +640,76 @@ test('sync now reports an invalid licence without the hourly schedule error', ()
     licenceKey: 'not-a-real-licence-key',
   }), services);
   assert.equal(result.ok, false);
-  assert.equal(result.error, 'Unrecognised licence key.');
+  assert.equal(result.error, 'Licence key not recognised. Check it against your payment confirmation.');
   assert.equal(result.error.includes('Hourly'), false);
   assert.equal(result.state.licencePlan, 'free');
-  assert.equal(result.state.licenceStatus, 'Free plan. Unrecognised licence key.');
+  assert.equal(result.state.licenceStatus, 'Free plan. Licence key not recognised. Check it against your payment confirmation.');
   assert.equal(services.fetchCalls.length, 0);
   assert.equal(services.store.getLicenceKey(), '');
+});
+
+test('licence display tone and copy cover none, unchecked, active, fallback, and inactive', () => {
+  const none = lib.buildSidebarState(harness({ storedKey: API_KEY }));
+  assert.equal(none.licenceTone, 'none');
+  assert.equal(none.licenceStatus, 'Free plan. Manual sync and Daily are available.');
+
+  const unchecked = lib.buildSidebarState(harness({ storedKey: API_KEY, storedLicence: LICENCE_KEY }));
+  assert.equal(unchecked.licenceTone, 'unchecked');
+  assert.equal(unchecked.licencePlan, 'free');
+  assert.equal(unchecked.licenceStatus, 'Free plan. Key saved but not checked yet. It is checked when you save Hourly or Every 6 hours.');
+
+  const active = harness({
+    storedKey: API_KEY,
+    storedLicence: LICENCE_KEY,
+    licenceFetch() {
+      return { status: 200, body: JSON.stringify({ active: true, plan: 'pro', reason: 'active Pro subscription verified' }) };
+    },
+  });
+  const activeSave = lib.saveSettingsForUser(form({ schedule: 'hourly' }), active);
+  assert.equal(activeSave.ok, true);
+  assert.equal(activeSave.state.licenceTone, 'active');
+  assert.equal(activeSave.state.licenceStatus, 'Pro. Subscription active.');
+  assert.equal(lib.buildSidebarState(active).licenceTone, 'active');
+
+  // Past the 24-hour cache, inside the 7-day fallback, with the licence server down.
+  active.fetchLicence = () => ({ status: 0, body: '', networkError: true });
+  active.clock = () => new Date('2026-11-11T14:05:00.000Z');
+  const fallback = lib.saveSettingsForUser(form({ schedule: 'hourly' }), active);
+  assert.equal(fallback.ok, true);
+  assert.equal(fallback.state.licencePlan, 'pro');
+  assert.equal(fallback.state.licenceTone, 'fallback');
+  assert.equal(fallback.state.licenceStatus, 'Pro. The licence server could not be reached, so the last successful check is in use.');
+
+  const inactive = harness({
+    storedKey: API_KEY,
+    storedLicence: LICENCE_KEY,
+    licenceFetch() {
+      return { status: 200, body: JSON.stringify({ active: false, plan: 'free', reason: 'subscription is not active' }) };
+    },
+  });
+  const denied = lib.saveSettingsForUser(form({ schedule: 'hourly' }), inactive);
+  assert.equal(denied.ok, false);
+  assert.equal(denied.proRequired, undefined);
+  assert.equal(denied.state.licenceTone, 'inactive');
+  assert.equal(lib.buildSidebarState(inactive).licenceTone, 'inactive');
+});
+
+test('only the missing-Pro restriction is flagged for the sidebar notice', () => {
+  const services = harness({ storedKey: API_KEY });
+  const saved = lib.saveSettingsForUser(form({ schedule: 'every_6_hours', licenceKey: '' }), services);
+  assert.equal(saved.proRequired, true);
+  const synced = lib.syncNowForUser(form({ schedule: 'hourly', licenceKey: '' }), services);
+  assert.equal(synced.proRequired, true);
+  assert.equal(services.fetchCalls.length, 0);
+
+  const offline = harness({
+    storedKey: API_KEY,
+    licenceFetch() {
+      return { status: 0, body: '', networkError: true };
+    },
+  });
+  const unchecked = lib.saveSettingsForUser(form({ schedule: 'hourly', licenceKey: LICENCE_KEY }), offline);
+  assert.equal(unchecked.ok, false);
+  assert.equal(unchecked.proRequired, undefined);
+  assert.equal(unchecked.error, 'The licence could not be checked, so the Pro schedule was not saved. Manual sync and Daily still work.');
 });

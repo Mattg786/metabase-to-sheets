@@ -8,16 +8,20 @@
     <style>
       :root {
         color-scheme: light;
-        --text: #1c1c1c;
-        --muted: #3d4a54;
-        --line: #c5ced6;
+        --text: #183344;
+        --muted: #3f5866;
+        --line: #7b8d99; /* 3.4:1 against white, meets the 3:1 control border minimum */
+        --rule: #cad8e1;
         --bg: #ffffff;
-        --accent: #0b5f8a;
+        --accent: #0a716f; /* same teal as the website */
         --accent-text: #ffffff;
+        --focus: #b55218;
         --error-bg: #fdecec;
         --error-text: #7a1f1f;
-        --notice-bg: #e7f2f8;
-        --notice-text: #0d3f5c;
+        --notice-bg: #e3f2f0;
+        --notice-text: #0a5250;
+        --warn-bg: #fdf3e1;
+        --warn-text: #7a4a00;
       }
 
       * { box-sizing: border-box; }
@@ -67,10 +71,11 @@
         font: inherit;
       }
 
-      input:focus,
-      select:focus,
-      button:focus {
-        outline: 2px solid var(--accent);
+      input:focus-visible,
+      select:focus-visible,
+      button:focus-visible,
+      a:focus-visible {
+        outline: 2px solid var(--focus);
         outline-offset: 2px;
       }
 
@@ -137,6 +142,27 @@
 
       #question-picker { margin-top: 8px; }
 
+      .licence {
+        margin: 16px 0 12px;
+        padding-top: 12px;
+        border-top: 1px solid var(--rule);
+      }
+
+      .licence-status {
+        margin: 6px 0 6px;
+        padding: 6px 8px;
+        border-left: 3px solid var(--line);
+        background: #f4f7f9;
+        color: var(--muted);
+        font-size: 13px;
+      }
+
+      .licence-status.is-active { border-left-color: var(--accent); background: var(--notice-bg); color: var(--notice-text); }
+      .licence-status.is-fallback { border-left-color: #b5770b; background: var(--warn-bg); color: var(--warn-text); }
+      .licence-status.is-inactive { border-left-color: #b03a3a; background: var(--error-bg); color: var(--error-text); }
+
+      .feedback .panel:last-child { margin-bottom: 8px; }
+
       .hidden { display: none; }
     </style>
   </head>
@@ -154,23 +180,12 @@
       <div class="field">
         <label for="api-key">API key</label>
         <input id="api-key" name="apiKey" type="password" autocomplete="off" spellcheck="false" maxlength="500" />
-        <p class="hint">From Metabase: Admin, Settings, Authentication, API keys. The key stays in your Google account. It is not written to the sheet. <a href="https://www.metabase.com/docs/latest/people-and-groups/api-keys" target="_blank" rel="noopener noreferrer">How to create an API key</a></p>
+        <p class="hint">From Metabase: Admin, Settings, Authentication, API keys. Put the key in a group that can only view the questions you sync. The key stays in your Google account and is not written to the sheet. <a href="https://www.metabase.com/docs/latest/people-and-groups/api-keys" target="_blank" rel="noopener noreferrer">How to create an API key</a></p>
       </div>
 
       <label class="check hidden" id="remove-key-row" for="remove-key">
         <input id="remove-key" type="checkbox" />
         <span>Remove saved API key</span>
-      </label>
-
-      <div class="field">
-        <label for="licence-key">Pro licence key</label>
-        <input id="licence-key" name="licenceKey" type="password" autocomplete="off" spellcheck="false" maxlength="160" />
-        <p id="licence-status" class="hint">Free plan. Manual sync and Daily are available.</p>
-      </div>
-
-      <label class="check hidden" id="remove-licence-row" for="remove-licence">
-        <input id="remove-licence" type="checkbox" />
-        <span>Remove saved licence key</span>
       </label>
 
       <div class="field">
@@ -193,7 +208,24 @@
       <div class="field">
         <label for="schedule">Schedule</label>
         <select id="schedule" name="schedule"></select>
-        <p class="schedule-note">The schedule runs as the Google account that saved it, and uses that account's API key. Hourly, every 6 hours, and daily are approximate. Apps Script chooses the exact minute.</p>
+        <p class="schedule-note">The schedule runs as the Google account that saved it, and uses that account's API key. Apps Script chooses the exact minute.</p>
+      </div>
+
+      <div class="licence">
+        <label for="licence-key">Pro licence key</label>
+        <input id="licence-key" name="licenceKey" type="password" autocomplete="off" spellcheck="false" maxlength="160" aria-describedby="licence-status" />
+        <p id="licence-status" class="licence-status" role="status">Free plan. Manual sync and Daily are available.</p>
+        <p id="pricing-hint" class="hint">Pro adds Hourly and Every 6 hours. <a href="https://metabase-to-sheets.matthew-k-galea.workers.dev/pricing" target="_blank" rel="noopener noreferrer">See pricing</a></p>
+        <label class="check hidden" id="remove-licence-row" for="remove-licence">
+          <input id="remove-licence" type="checkbox" />
+          <span>Remove saved licence key</span>
+        </label>
+      </div>
+
+      <div class="feedback">
+        <p id="notice" class="panel notice hidden" role="status"></p>
+        <p id="pro-notice" class="panel notice hidden" role="status">Hourly and Every 6 hours need Pro. Manual sync and Daily still work. <a href="https://metabase-to-sheets.matthew-k-galea.workers.dev/pricing" target="_blank" rel="noopener noreferrer">See pricing</a></p>
+        <p id="error" class="panel error hidden" role="alert"></p>
       </div>
 
       <div class="actions">
@@ -203,9 +235,7 @@
       <p class="hint">Sync writes into the chosen sheet starting at A1. Only the previously synced block is cleared. Cells you typed outside that block are left alone.</p>
     </form>
 
-    <p id="notice" class="panel notice hidden" role="status"></p>
     <p id="last-sync" role="status">Not synced yet.</p>
-    <p id="error" class="panel error hidden" role="alert"></p>
 
     <script>
       var busy = false;
@@ -224,6 +254,22 @@
         return document.getElementById(id);
       }
 
+      var FREE_STATUS = 'Free plan. Manual sync and Daily are available.';
+      var TONES = ['none', 'unchecked', 'active', 'fallback', 'inactive'];
+      var scheduleOptions = [];
+
+      function reveal(node) {
+        // Feedback sits above the buttons. Scroll it into view in a short sidebar.
+        if (node && typeof node.scrollIntoView === 'function') {
+          node.scrollIntoView({ block: 'nearest' });
+        }
+      }
+
+      function setHidden(node, hidden) {
+        if (hidden) node.classList.add('hidden');
+        else node.classList.remove('hidden');
+      }
+
       function showText(id, text) {
         var node = byId(id);
         if (!text) {
@@ -233,6 +279,13 @@
         }
         node.textContent = text;
         node.classList.remove('hidden');
+        if (id === 'notice' || id === 'error') reveal(node);
+      }
+
+      function showProNotice(show) {
+        var node = byId('pro-notice');
+        setHidden(node, !show);
+        if (show) reveal(node);
       }
 
       function setBusy(isBusy) {
@@ -244,8 +297,42 @@
       }
 
       function showError(message) {
-        if (message) showText('notice', '');
+        if (message) {
+          showText('notice', '');
+          showProNotice(false);
+        }
         showText('error', message ? 'Error: ' + message : '');
+      }
+
+      function isPro(state) {
+        return state && state.licencePlan === 'pro';
+      }
+
+      function scheduleLabel(item, pro) {
+        var needsPro = item.value === 'hourly' || item.value === 'every_6_hours';
+        return needsPro && !pro ? item.label + ' (Pro)' : item.label;
+      }
+
+      function labelSchedules(pro) {
+        var select = byId('schedule');
+        for (var i = 0; i < select.children.length; i++) {
+          var option = select.children[i];
+          for (var j = 0; j < scheduleOptions.length; j++) {
+            if (scheduleOptions[j].value === option.value) {
+              option.textContent = scheduleLabel(scheduleOptions[j], pro);
+            }
+          }
+        }
+      }
+
+      function applyLicenceHint(state) {
+        if (!state) return;
+        var status = byId('licence-status');
+        status.textContent = state.licenceStatus || FREE_STATUS;
+        for (var i = 0; i < TONES.length; i++) status.classList.remove('is-' + TONES[i]);
+        status.classList.add('is-' + (state.licenceTone || (isPro(state) ? 'active' : 'none')));
+        setHidden(byId('pricing-hint'), isPro(state));
+        labelSchedules(isPro(state));
       }
 
       function fieldValue(id) {
@@ -291,18 +378,12 @@
         if (state.hasApiKey) removeRow.classList.remove('hidden');
         else removeRow.classList.add('hidden');
 
-        var placeholder = state.hasApiKey
-          ? 'A key is saved. Leave this blank to keep it.'
-          : '';
-        byId('api-key').placeholder = placeholder;
+        byId('api-key').placeholder = state.hasApiKey ? 'Saved. Leave blank to keep.' : '';
 
         var removeLicenceRow = byId('remove-licence-row');
         if (state.hasLicenceKey) removeLicenceRow.classList.remove('hidden');
         else removeLicenceRow.classList.add('hidden');
-        byId('licence-key').placeholder = state.hasLicenceKey
-          ? 'A licence key is saved. Leave this blank to keep it.'
-          : '';
-        byId('licence-status').textContent = state.licenceStatus || 'Free plan. Manual sync and Daily are available.';
+        byId('licence-key').placeholder = state.hasLicenceKey ? 'Saved. Leave blank to keep.' : '';
 
         var sheetOptions = (state.sheets || []).map(function (name) {
           return { value: name, label: name };
@@ -310,18 +391,14 @@
         var selectedSheet = state.sheetName || state.activeSheetName || '';
         fillSelect(byId('sheet-name'), sheetOptions, selectedSheet);
 
-        var scheduleOptions = (state.schedules || []).map(function (item) {
+        scheduleOptions = (state.schedules || []).map(function (item) {
           return { value: item.id, label: item.label };
         });
         fillSelect(byId('schedule'), scheduleOptions, state.schedule || 'manual');
+        applyLicenceHint(state);
 
         byId('last-sync').textContent = state.lastSyncLabel || 'Not synced yet.';
         if (restoreStoredError !== false) showError(state.lastError || '');
-      }
-
-      function applyLicenceHint(state) {
-        if (!state) return;
-        byId('licence-status').textContent = state.licenceStatus || 'Free plan. Manual sync and Daily are available.';
       }
 
       function onFailure(requestId) {
@@ -343,6 +420,12 @@
             byId('last-sync').textContent = result.state.lastSyncLabel || 'Not synced yet.';
             applyLicenceHint(result.state);
           }
+          if (result.proRequired) {
+            showError('');
+            showText('notice', '');
+            showProNotice(true);
+            return;
+          }
           showError(result.error || 'The request failed.');
           return;
         }
@@ -357,6 +440,7 @@
         var requestId = beginRequest();
         setBusy(true);
         showText('notice', '');
+        showProNotice(false);
         showError('');
         var runner = google.script.run
           .withSuccessHandler(function (result) { onMutation(result, requestId); })
@@ -402,6 +486,7 @@
         var requestId = beginRequest();
         setBusy(true);
         showText('notice', '');
+        showProNotice(false);
         google.script.run
           .withSuccessHandler(function (result) { onQuestions(result, requestId); })
           .withFailureHandler(function () { onFailure(requestId); })
