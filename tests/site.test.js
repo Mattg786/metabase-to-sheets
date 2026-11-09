@@ -68,6 +68,8 @@ test('Workers Static Assets routes only API paths through the Worker', () => {
   assert.match(config, /run_worker_first = \["\/api\/\*"\]/);
   assert.match(config, /\[observability\]\nenabled = true/);
   assert.match(config, /\[observability\.traces\]\nenabled = true/);
+  assert.match(config, /binding = "DB"/);
+  assert.match(config, /database_name = "metabase-to-sheets-waitlist"/);
   assert.doesNotMatch(read('worker/index.mjs'), /console\./);
   assert.equal(fs.existsSync(path.join(root, 'vercel.json')), false);
   assert.equal(fs.existsSync(path.join(root, 'api')), false);
@@ -103,21 +105,27 @@ test('every page shares one nav, one status line, and one complete footer', () =
   assert.match([...statusLines][0], /Not on the Google Workspace Marketplace yet/);
 });
 
-test('pricing shows the Pro price as not yet available and fetches no payment link', () => {
+test('pricing shows the Pro price, a waitlist form, and fetches no payment link', () => {
   const pricing = read('site/pricing.html');
   assert.match(pricing, /\$9 <span class="price-unit">per month, USD<\/span>/);
-  assert.match(pricing, /Not yet available to buy\./);
+  assert.match(pricing, /data-waitlist/);
+  assert.match(pricing, /Join the waitlist for Pro/);
   assert.match(pricing, /Hourly schedule/);
   assert.match(pricing, /Every 6 hours schedule/);
-  assert.doesNotMatch(pricing, /Continue to Stripe|data-payment-link|buy\.stripe\.com|Price TBC/);
+  assert.doesNotMatch(pricing, /Continue to Stripe|data-payment-link|buy\.stripe\.com|Price TBC|Not yet available to buy/);
   const js = read('site/site.js');
   assert.equal(js.includes('/api/payment-link'), false);
+  assert.match(js, /\/api\/waitlist/);
   assert.match(read('worker/index.mjs'), /'\/api\/payment-link': paymentLink/);
+  assert.match(read('worker/index.mjs'), /'\/api\/waitlist': waitlistSignup/);
+  assert.match(read('worker/index.mjs'), /'\/api\/waitlist\/stats': waitlistStats/);
 });
 
-test('home has a setup guide CTA, no install link, and factual Pro schedules', () => {
+test('home has a waitlist form, setup guide CTA, no install link, and factual Pro schedules', () => {
   const home = read('site/index.html');
-  assert.match(home, /<a class="button" href="https:\/\/github\.com\/Mattg786\/metabase-to-sheets#test-install">Read the setup guide<\/a>/);
+  assert.match(home, /data-waitlist/);
+  assert.match(home, /Join the waitlist/);
+  assert.match(home, /href="https:\/\/github\.com\/Mattg786\/metabase-to-sheets#test-install">Read the setup guide</);
   assert.match(read('README.md'), /^## Test install$/m);
   assert.doesNotMatch(home, /workspace\.google\.com\/marketplace/);
   assert.match(home, /Pro adds Hourly and Every 6 hours/);

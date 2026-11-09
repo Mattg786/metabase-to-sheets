@@ -120,3 +120,19 @@ This is a private test install with [clasp](https://github.com/google/clasp). It
 Do not commit `.clasp.json`. Do not put an API key in the repository, the sheet, or a log.
 
 To update the test copy later, change the code and run `clasp push` again, then reload the sheet.
+
+
+
+## Waitlist
+
+The site collects launch emails at `POST /api/waitlist`. Signups live in the free Cloudflare D1 database `metabase-to-sheets-waitlist`.
+
+Read the count and list (needs the admin token file):
+
+```bash
+./scripts/waitlist-stats.sh
+# or
+curl -sS -H "X-Waitlist-Admin: $(tr -d '
+' < ~/.config/mts/waitlist_admin)" \
+  https://metabase-to-sheets.matthew-k-galea.workers.dev/api/waitlist/stats
+```

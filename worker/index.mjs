@@ -4,11 +4,24 @@ import licensing from '../server/_lib/licensing.js';
 import checkout from '../server/_lib/checkout.js';
 import webhookHelpers from '../server/_lib/webhook.js';
 import stripeHelpers from '../server/_lib/stripe.js';
+import waitlist from '../server/_lib/waitlist.js';
 
-const { checkLicence, MAX_LICENCE_LENGTH, LICENCE_METADATA_KEY, isValidLicenceKey } = licensing;
+const { checkLicence, MAX_LICENCE_LENGTH, LICENCE_METADATA_KEY, isValidLicenceKey, timingSafeEqual } = licensing;
 const { verifyCheckoutSession, isPaymentLinkUrl } = checkout;
 const { handleWebhookEvent } = webhookHelpers;
 const { getStripeClient } = stripeHelpers;
+const {
+  normalizeEmail,
+  isValidEmail,
+  normalizeNote,
+  normalizeSource,
+  hashIp,
+  checkRateLimit,
+  addSignup,
+  countSignups,
+  listSignups,
+  deleteSignup,
+} = waitlist;
 
 const MAX_JSON_BYTES = 16 * 1024;
 const MAX_WEBHOOK_BYTES = 512 * 1024;
@@ -172,11 +185,95 @@ async function webhook(request, env) {
   }
 }
 
+function clientIp(request) {
+  const forwarded = request.headers.get('cf-connecting-ip') || request.headers.get('x-forwarded-for') || '';
+  return forwarded.split(',')[0].trim();
+}
+
+function adminAuthorized(request, env) {
+  const expected = env.WAITLIST_ADMIN_TOKEN;
+  if (!expected) return false;
+  const header = request.headers.get('x-waitlist-admin') || '';
+  return Boolean(header) && timingSafeEqual(header, expected);
+}
+
+async function waitlistSignup(request, env) {
+  if (request.method !== 'POST') return methodNotAllowed('POST');
+  if (!env.DB) return json({ ok: false, reason: 'waitlist not configured' }, 503);
+  let body;
+  try {
+    body = await readJson(request);
+  } catch {
+    return json({ ok: false, reason: 'invalid request body' }, 400);
+  }
+  // Honeypot: bots fill hidden fields. Humans leave them empty.
+  if (typeof body.company === 'string' && body.company.trim()) {
+    return json({ ok: true, message: 'Thanks. We will email you when the add-on is on the Marketplace.' });
+  }
+  const email = normalizeEmail(body.email);
+  if (!isValidEmail(email)) {
+    return json({ ok: false, reason: 'Enter a valid email address.' }, 400);
+  }
+  const url = new URL(request.url);
+  const note = normalizeNote(body.note);
+  const source = normalizeSource(body.source || body.ref || url.searchParams.get('ref') || '');
+  const ipHash = await hashIp(clientIp(request));
+  const rate = await checkRateLimit(env.DB, ipHash || `email:${email}`);
+  if (!rate.ok) {
+    return json({ ok: false, reason: 'Too many signups from this connection. Try again in an hour.' }, 429);
+  }
+  try {
+    const result = await addSignup(env.DB, { email, note, source, ipHash });
+    if (result.duplicate) {
+      return json({ ok: true, duplicate: true, message: 'You are already on the list. We will email you when it launches.' });
+    }
+    return json({ ok: true, message: 'Thanks. We will email you when the add-on is on the Marketplace.' });
+  } catch {
+    return json({ ok: false, reason: 'Could not save your email. Try again in a minute.' }, 500);
+  }
+}
+
+async function waitlistStats(request, env) {
+  if (request.method === 'DELETE') return waitlistDelete(request, env);
+  if (request.method !== 'GET') return methodNotAllowed('GET, DELETE');
+  if (!env.DB) return json({ ok: false, reason: 'waitlist not configured' }, 503);
+  if (!env.WAITLIST_ADMIN_TOKEN) return json({ ok: false, reason: 'admin not configured' }, 503);
+  if (!adminAuthorized(request, env)) return json({ ok: false, reason: 'unauthorized' }, 401);
+  try {
+    const count = await countSignups(env.DB);
+    const signups = await listSignups(env.DB);
+    return json({ ok: true, count, signups });
+  } catch {
+    return json({ ok: false, reason: 'stats failed' }, 500);
+  }
+}
+
+async function waitlistDelete(request, env) {
+  if (!env.DB) return json({ ok: false, reason: 'waitlist not configured' }, 503);
+  if (!env.WAITLIST_ADMIN_TOKEN) return json({ ok: false, reason: 'admin not configured' }, 503);
+  if (!adminAuthorized(request, env)) return json({ ok: false, reason: 'unauthorized' }, 401);
+  let body;
+  try {
+    body = await readJson(request);
+  } catch {
+    return json({ ok: false, reason: 'invalid request body' }, 400);
+  }
+  try {
+    const result = await deleteSignup(env.DB, body.email);
+    if (!result.ok) return json({ ok: false, reason: 'Enter a valid email address.' }, 400);
+    return json({ ok: true, deleted: result.deleted });
+  } catch {
+    return json({ ok: false, reason: 'delete failed' }, 500);
+  }
+}
+
 const apiRoutes = {
   '/api/licence': licence,
   '/api/webhook': webhook,
   '/api/payment-link': paymentLink,
   '/api/success-session': successSession,
+  '/api/waitlist': waitlistSignup,
+  '/api/waitlist/stats': waitlistStats,
 };
 
 async function fetchHandler(request, env) {

@@ -97,6 +97,61 @@ async function verifySuccess() {
   renderSession(describeSession(sessionId, data));
 }
 
+
+
+function readWaitlistRef() {
+  const params = new URLSearchParams(window.location.search);
+  const fromQuery = params.get('ref') || params.get('utm_source') || '';
+  if (fromQuery) {
+    try { window.sessionStorage.setItem('mts_waitlist_ref', fromQuery); } catch (error) { /* ignore */ }
+    return fromQuery;
+  }
+  try { return window.sessionStorage.getItem('mts_waitlist_ref') || ''; } catch (error) { return ''; }
+}
+
+function setWaitlistStatus(form, tone, message) {
+  const status = form.querySelector('[data-waitlist-status]');
+  if (!status) return;
+  status.className = `waitlist-status${tone ? ` is-${tone}` : ''}`;
+  status.textContent = message;
+}
+
+async function submitWaitlist(event) {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const button = form.querySelector('button[type="submit"]');
+  const email = form.email.value;
+  const note = form.note ? form.note.value : '';
+  const company = form.company ? form.company.value : '';
+  const refInput = form.querySelector('input[name="ref"]');
+  const ref = (refInput && refInput.value) || readWaitlistRef();
+  if (refInput) refInput.value = ref;
+  setWaitlistStatus(form, '', 'Sending…');
+  if (button) button.disabled = true;
+  let data = null;
+  try {
+    const response = await fetch('/api/waitlist', {
+      method: 'POST',
+      cache: 'no-store',
+      credentials: 'omit',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, note, company, source: ref, ref }),
+    });
+    data = await response.json();
+    if (!response.ok || !data.ok) {
+      setWaitlistStatus(form, 'error', (data && data.reason) || 'Could not join the waitlist. Try again.');
+      return;
+    }
+    setWaitlistStatus(form, 'ok', data.message || 'Thanks. We will email you when it launches.');
+    form.reset();
+    if (refInput) refInput.value = ref;
+  } catch (error) {
+    setWaitlistStatus(form, 'error', 'Could not reach the server. Check your connection and try again.');
+  } finally {
+    if (button) button.disabled = false;
+  }
+}
+
 if (typeof window !== 'undefined' && typeof document !== 'undefined') {
   const siteConfig = window.METABASE_TO_SHEETS_CONFIG || { baseUrl: window.location.origin };
   const canonical = document.querySelector('[data-canonical]');
@@ -111,6 +166,13 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
   const copyButton = document.querySelector('[data-copy-key]');
   if (copyButton) copyButton.addEventListener('click', copyKey);
   if (document.querySelector('[data-licence-key]')) verifySuccess();
+  const waitlistForms = document.querySelectorAll('[data-waitlist]');
+  const storedRef = readWaitlistRef();
+  waitlistForms.forEach((form) => {
+    const refInput = form.querySelector('input[name="ref"]');
+    if (refInput && storedRef) refInput.value = storedRef;
+    form.addEventListener('submit', submitWaitlist);
+  });
 }
 
-if (typeof module !== 'undefined' && module.exports) module.exports = { describeSession };
+if (typeof module !== 'undefined' && module.exports) module.exports = { describeSession, readWaitlistRef, submitWaitlist };
