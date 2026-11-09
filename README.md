@@ -4,7 +4,7 @@ A Google Sheets Editor add-on that copies the results of one saved Metabase ques
 
 The sync is read-only. Data moves from one Metabase instance into the active spreadsheet. Nothing is written back to Metabase.
 
-This repository is the Apps Script project. It is not published on the Google Workspace Marketplace.
+This repository contains the Apps Script project and a static launch site with a Cloudflare Worker for the licence and payment API. It is not published on the Google Workspace Marketplace.
 
 ## What you do in the sheet
 
@@ -13,7 +13,7 @@ This repository is the Apps Script project. It is not published on the Google Wo
 3. Enter an API key. In Metabase this is under Admin, Settings, Authentication, API keys. See [Metabase API keys](https://www.metabase.com/docs/latest/people-and-groups/api-keys).
 4. Enter the question ID. That is the number in a URL such as `/question/42`. **Load questions** can fill the ID from `GET /api/card` when the key is allowed to list questions. Typing the ID is enough.
 5. Choose the sheet tab that should receive the rows.
-6. Choose **Manual only**, **Hourly**, **Every 6 hours**, or **Daily**, then **Save**. **Sync now** runs a sync immediately.
+6. Choose **Manual only** or **Daily**, then **Save**. Hourly and Every 6 hours require a verified Pro licence. **Sync now** runs a sync immediately.
 
 Each sync calls `POST {site}/api/card/{id}/query/json` with the header `X-API-Key`. The JSON export is a list of row objects. The add-on writes those keys as the header row and the values as the rows underneath, starting at cell A1. It does not add columns of its own.
 
@@ -25,7 +25,7 @@ String values are written as plain text so Sheets does not treat leading `=`, `+
 
 The sidebar shows the last sync time in UTC, the row count, and the last error. A successful sync clears the error. A failed sync leaves the previous cells in place.
 
-The schedule runs as the Google account that saved it, and it uses that account's API key. Hourly uses a trigger every hour. Every 6 hours uses a trigger every 6 hours. Daily uses a trigger every day. Apps Script chooses the exact minute.
+The schedule runs as the Google account that saved it, and it uses that account's API key. The free plan permits one saved sync per spreadsheet, manual sync, and Daily. A verified Pro licence permits Hourly and Every 6 hours. Apps Script chooses the exact minute. A scheduled run checks the licence again so a stale trigger cannot bypass the plan.
 
 Very large results are refused before the sheet is changed: more than 100,000 rows, or more than 2,000 columns. A sync is also refused when growing the sheet would push the spreadsheet past Google Sheets' cell limit.
 
@@ -42,7 +42,13 @@ Redirects are not followed, so the key is not sent on to another host. Site URLs
 
 Other settings (site URL, question ID, sheet name, schedule, last sync time, and last error) are stored in document properties for the spreadsheet.
 
+The optional Pro licence key and its 24-hour verification cache are stored in UserProperties. The cache may use the last valid active result for up to 7 days when the licence endpoint is unreachable or returns malformed data. An explicit inactive or configuration response revokes Pro immediately. Changing or clearing the key clears the old cache.
+
 A `401` means Metabase rejected the key. A `403` means the key cannot access that question. A `404` means the question ID was not found. If the host cannot be reached, the sidebar says so and the sheet is left unchanged. A new key is saved only after Metabase accepts it during **Sync now**. **Save** stores a key without calling Metabase, so you can check it with **Sync now** afterwards.
+
+## Privacy
+
+The add-on reads the selected saved question from the user's Metabase host and writes its rows to the selected current spreadsheet. It does not store sheet data on the licence server. Read the [privacy statement](site/privacy.html), [support guide](site/support.html), and [payment setup](docs/PAYMENTS.md) before deployment. The launch site says Marketplace publication is pending and provides no fake install URL.
 
 ## Scopes
 
@@ -62,6 +68,14 @@ src/appsscript.json    Apps Script manifest
 src/Lib.js             Validation, Metabase calls, sheet writing, schedule
 src/Main.js            Menu and functions called by the sidebar
 src/Sidebar.html       Sidebar UI
+worker/                Cloudflare Worker API routes
+server/_lib/           Shared Stripe REST, licence, checkout, and webhook logic
+site/                  Static launch pages, styles, sitemap, and OG asset
+wrangler.toml          Worker and Static Assets configuration
+docs/SITE-DESIGN.md    Launch site design decisions
+docs/PRIVACY-EVIDENCE.md Source trace for the privacy statement
+docs/PAYMENTS.md      Cloudflare hosting and Stripe setup
+docs/OFFICIAL-SOURCES.md Dated official source record
 .clasp.json.example    Copy to .clasp.json locally. Do not commit .clasp.json.
 tests/                 Node tests with a mocked Metabase API
 ```
@@ -71,10 +85,16 @@ tests/                 Node tests with a mocked Metabase API
 ## Tests
 
 ```bash
+npm ci
 npm test
+npm run build:site
 ```
 
-The tests mock Metabase responses, including `401`, `403`, `404`, redirects, network failure, and a JSON row list. They do not call a live Metabase, and they do not need a Google account. Node.js 18 or newer is required. No extra packages are installed.
+The tests mock Metabase and Stripe responses, including invalid and overlong licence keys, missing configuration, wrong products, inactive subscriptions, paid and unpaid Checkout Sessions, signed-webhook fulfilment paths, duplicate webhook retries, cache expiry, outage fallback, revocation, static output, and sidebar state. They do not call a live Metabase or Stripe account, and they do not need a Google account. Node.js 20 or newer is required.
+
+## Website deployment shape
+
+Cloudflare Workers Static Assets serves `site/`; `worker/index.mjs` handles `/api/licence`, `/api/webhook`, `/api/payment-link`, and `/api/success-session`. `wrangler.toml` runs the Worker first only for `/api/*` and leaves static assets on the asset-first path. The planned host is `https://metabase-to-sheets.matthew-k-galea.workers.dev`; it is not yet live or verified. See [docs/PAYMENTS.md](docs/PAYMENTS.md) and [docs/HANDOFF-CLOUDFLARE-FINAL-v1.md](docs/HANDOFF-CLOUDFLARE-FINAL-v1.md).
 
 ## Test install
 

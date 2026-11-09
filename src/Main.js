@@ -34,12 +34,20 @@ function savedKey(services) {
   }
 }
 
+function savedLicenceKey(services) {
+  try {
+    return services.store.getLicenceKey();
+  } catch (error) {
+    return '';
+  }
+}
+
 function saveSettings(form) {
   var services = createGoogleServices();
   try {
     return saveSettingsForUser(form || {}, services);
   } catch (error) {
-    return toPublicError(error, [form && form.apiKey, savedKey(services)]);
+    return toPublicError(error, [form && form.apiKey, form && form.licenceKey, savedKey(services), savedLicenceKey(services)]);
   }
 }
 
@@ -48,7 +56,7 @@ function syncNow(form) {
   try {
     return syncNowForUser(form || {}, services);
   } catch (error) {
-    return toPublicError(error, [form && form.apiKey, savedKey(services)]);
+    return toPublicError(error, [form && form.apiKey, form && form.licenceKey, savedKey(services), savedLicenceKey(services)]);
   }
 }
 
@@ -66,6 +74,6 @@ function runScheduledSync() {
   try {
     runScheduledSyncForUser(services);
   } catch (error) {
-    throw new Error(toPublicError(error, [services.store.getApiKey()]).error);
+    throw new Error(toPublicError(error, [services.store.getApiKey(), services.store.getLicenceKey()]).error);
   }
 }

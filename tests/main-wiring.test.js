@@ -134,6 +134,21 @@ test('the sheet menu and Sync now call the mocked Metabase API', () => {
   assert.equal(typeof context.getSidebarState, 'function');
   assert.equal(typeof context.loadQuestions, 'function');
 
+  const hydrated = context.getSidebarState();
+  assert.equal(hydrated.hasLicenceKey, false);
+  assert.equal(hydrated.licencePlan, 'free');
+  assert.equal(JSON.stringify(hydrated.schedules.map((item) => item.id)), JSON.stringify(['manual', 'hourly', 'every_6_hours', 'daily']));
+
+  const saved = context.saveSettings({
+    baseUrl: 'https://example.metabaseapp.com',
+    apiKey,
+    cardId: '5',
+    sheetName: 'Results',
+    schedule: 'daily',
+  });
+  assert.equal(saved.ok, true);
+  assert.equal(saved.state.schedule, 'daily');
+
   const secondKey = 'mb_second_key_999999';
   userProperties.setProperty = function () {
     throw new Error('store failed for ' + apiKey + ' and ' + secondKey);
@@ -149,4 +164,10 @@ test('the sheet menu and Sync now call the mocked Metabase API', () => {
   assert.equal(failed.error.includes(apiKey), false);
   assert.equal(failed.error.includes(secondKey), false);
   assert.match(failed.error, /\[redacted\]/);
+
+  const sidebar = fs.readFileSync(path.join(__dirname, '..', 'src', 'Sidebar.html'), 'utf8');
+  assert.match(sidebar, /applyState/);
+  assert.match(sidebar, /withFailureHandler/);
+  assert.match(sidebar, /saveSettings/);
+  assert.match(sidebar, /licence-status/);
 });

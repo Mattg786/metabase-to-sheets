@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630" role="img" aria-labelledby="title desc">
+  <title id="title">Metabase to Sheets</title>
+  <desc id="desc">A saved Metabase question flowing into spreadsheet cells.</desc>
+  <rect width="1200" height="630" fill="#F6F9FC"/>
+  <rect x="72" y="76" width="1056" height="478" fill="#E7F0F7" stroke="#CAD8E1" stroke-width="3"/>
+  <rect x="120" y="124" width="370" height="196" fill="#FFFFFF" stroke="#183344" stroke-width="3"/>
+  <text x="152" y="170" fill="#0A716F" font-family="Arial, sans-serif" font-size="24" font-weight="700">Saved question</text>
+  <text x="152" y="228" fill="#183344" font-family="Arial, sans-serif" font-size="36" font-weight="700">Orders by region</text>
+  <text x="152" y="273" fill="#516B79" font-family="Arial, sans-serif" font-size="22">A result for your sheet.</text>
+  <rect x="560" y="124" width="520" height="330" fill="#FFFFFF" stroke="#CAD8E1" stroke-width="3"/>
+  <rect x="560" y="124" width="520" height="64" fill="#183344"/>
+  <g stroke="#CAD8E1" stroke-width="2"><path d="M560 250h520M560 312h520M560 374h520M820 188v266M960 188v266"/></g>
+  <g fill="#183344" font-family="Arial, sans-serif" font-size="22"><text x="584" y="166" fill="#FFFFFF">Results</text><text x="584" y="226">Region</text><text x="844" y="226">Orders</text><text x="984" y="226">Updated</text><text x="584" y="288">North</text><text x="844" y="288">128</text><text x="984" y="288">Today</text><text x="584" y="350">South</text><text x="844" y="350">94</text><text x="984" y="350">Today</text><text x="584" y="412">West</text><text x="844" y="412">61</text><text x="984" y="412">Today</text></g>
+  <path d="M492 222h58" stroke="#B55218" stroke-width="6"/><path d="m532 204 22 18-22 18" fill="none" stroke="#B55218" stroke-width="6"/>
+</svg>
