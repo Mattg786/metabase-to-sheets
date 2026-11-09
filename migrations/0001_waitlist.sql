@@ -1,0 +1,13 @@
+CREATE TABLE IF NOT EXISTS waitlist (
+  email TEXT PRIMARY KEY NOT NULL,
+  note TEXT NOT NULL DEFAULT '',
+  ref TEXT NOT NULL DEFAULT '',
+  ip_hash TEXT NOT NULL DEFAULT '',
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS waitlist_rate (
+  bucket TEXT PRIMARY KEY NOT NULL,
+  hits INTEGER NOT NULL DEFAULT 0,
+  window_start INTEGER NOT NULL
+);

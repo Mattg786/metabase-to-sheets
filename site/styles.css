@@ -328,3 +328,88 @@ h3 { font-size: 1.15rem; letter-spacing: -0.01em; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; scroll-behavior: auto !important; }
 }
+
+/* Waitlist form */
+.waitlist {
+  max-width: 36rem;
+  margin-top: var(--space-4);
+  padding: var(--space-3) 0 0;
+  border-top: 1px solid var(--grid);
+}
+
+.waitlist-pricing {
+  margin-top: var(--space-4);
+  padding-top: var(--space-3);
+}
+
+.waitlist-heading {
+  font-size: 1.35rem;
+}
+
+.waitlist-lede {
+  margin: 10px 0 0;
+  color: var(--muted);
+  max-width: 52ch;
+}
+
+.waitlist-field {
+  display: block;
+  margin-top: var(--space-2);
+}
+
+.waitlist-field span {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+.waitlist-field .optional {
+  color: var(--muted);
+  font-weight: 400;
+}
+
+.waitlist-field input[type="email"],
+.waitlist-field input[type="text"] {
+  width: 100%;
+  min-height: 48px;
+  padding: 10px 12px;
+  border: 1px solid #7b8d99;
+  border-radius: 4px;
+  background: var(--white);
+  color: var(--ink);
+  font: inherit;
+}
+
+.waitlist-field input:focus-visible {
+  outline: 3px solid var(--orange);
+  outline-offset: 2px;
+}
+
+.honeypot {
+  position: absolute;
+  left: -10000px;
+  top: auto;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+}
+
+.waitlist-status {
+  min-height: 1.5em;
+  margin: 12px 0 0;
+  color: var(--muted);
+  font-size: 0.95rem;
+}
+
+.waitlist-status.is-ok {
+  color: var(--ok-ink);
+}
+
+.waitlist-status.is-error {
+  color: var(--error-ink);
+}
+
+.waitlist .actions {
+  margin-top: var(--space-3);
+}

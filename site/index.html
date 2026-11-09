@@ -33,7 +33,27 @@
         <div class="hero-copy">
           <h1>Copy a saved Metabase question into Google Sheets</h1>
           <p class="lede">The add-on reads the result of one saved question and writes it into a sheet tab, starting at cell A1. Run it with Sync now or on a Daily schedule. Pro adds Hourly and Every 6 hours.</p>
-          <div class="actions"><a class="button" href="https://github.com/Mattg786/metabase-to-sheets#test-install">Read the setup guide</a><a class="button secondary" href="/pricing">See pricing</a></div>
+          <form class="waitlist" data-waitlist novalidate>
+            <p class="waitlist-lede">Join the waitlist and we will email you when the Marketplace listing goes up.</p>
+            <label class="waitlist-field">
+              <span>Email</span>
+              <input type="email" name="email" autocomplete="email" required maxlength="254" placeholder="you@company.com">
+            </label>
+            <label class="waitlist-field">
+              <span>What would you sync? <span class="optional">(optional)</span></span>
+              <input type="text" name="note" maxlength="500" placeholder="Saved question, Metabase version, schedule">
+            </label>
+            <label class="honeypot" aria-hidden="true">
+              <span>Company</span>
+              <input type="text" name="company" tabindex="-1" autocomplete="off">
+            </label>
+            <input type="hidden" name="ref" value="">
+            <div class="actions">
+              <button class="button" type="submit">Join the waitlist</button>
+              <a class="button secondary" href="https://github.com/Mattg786/metabase-to-sheets#test-install">Read the setup guide</a>
+            </div>
+            <p class="waitlist-status" data-waitlist-status role="status" aria-live="polite"></p>
+          </form>
         </div>
         <!-- TODO(dev): replace this example with a real screenshot of the sidebar in a test sheet once one exists. Do not swap in a rendered mock. -->
         <figure class="flow">

@@ -4,9 +4,9 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Pricing | Metabase to Sheets</title>
-    <meta name="description" content="Free covers Sync now, Manual only, and Daily. Pro adds Hourly and Every 6 hours for $9 per month, USD. Pro is not yet available to buy.">
+    <meta name="description" content="Free covers Sync now, Manual only, and Daily. Pro adds Hourly and Every 6 hours for $9 per month, USD. Join the waitlist for Pro.">
     <meta property="og:title" content="Pricing | Metabase to Sheets">
-    <meta property="og:description" content="Free covers Sync now, Manual only, and Daily. Pro adds Hourly and Every 6 hours for $9 per month, USD. Pro is not yet available to buy.">
+    <meta property="og:description" content="Free covers Sync now, Manual only, and Daily. Pro adds Hourly and Every 6 hours for $9 per month, USD. Join the waitlist for Pro.">
     <meta property="og:type" content="website">
     <meta property="og:url" content="https://metabase-to-sheets.matthew-k-galea.workers.dev/pricing">
     <meta property="og:image" content="https://metabase-to-sheets.matthew-k-galea.workers.dev/assets/og.png">
@@ -28,6 +28,7 @@
       </div>
       <p class="status-line"><span class="page-width">Not on the Google Workspace Marketplace yet. Setup is manual, using the <a href="https://github.com/Mattg786/metabase-to-sheets#test-install">setup guide</a>.</span></p>
     </header>
+    <main id="main">
       <section class="page-hero">
         <div class="page-width">
           <h1>Pricing</h1>
@@ -44,11 +45,31 @@
           <section class="plan" aria-labelledby="plan-pro">
             <h2 id="plan-pro">Pro</h2>
             <p class="price">$9 <span class="price-unit">per month, USD</span></p>
-            <p class="plan-status">Not yet available to buy.</p>
             <ul class="plan-list"><li>Everything in Free</li><li>Hourly schedule</li><li>Every 6 hours schedule</li></ul>
           </section>
         </div>
         <p class="plans-note">Both plans keep one saved sync per spreadsheet. Apps Script chooses the exact minute a schedule runs.</p>
+        <form class="waitlist waitlist-pricing" data-waitlist novalidate>
+          <h2 class="waitlist-heading">Join the waitlist for Pro</h2>
+          <p class="waitlist-lede">Pro is not on sale yet. Leave your email and we will tell you when you can buy it.</p>
+          <label class="waitlist-field">
+            <span>Email</span>
+            <input type="email" name="email" autocomplete="email" required maxlength="254" placeholder="you@company.com">
+          </label>
+          <label class="waitlist-field">
+            <span>What would you sync? <span class="optional">(optional)</span></span>
+            <input type="text" name="note" maxlength="500" placeholder="Saved question, Metabase version, schedule">
+          </label>
+          <label class="honeypot" aria-hidden="true">
+            <span>Company</span>
+            <input type="text" name="company" tabindex="-1" autocomplete="off">
+          </label>
+          <input type="hidden" name="ref" value="">
+          <div class="actions">
+            <button class="button" type="submit">Join the waitlist</button>
+          </div>
+          <p class="waitlist-status" data-waitlist-status role="status" aria-live="polite"></p>
+        </form>
         <p class="plans-note">Questions about Pro? <a href="mailto:mattgalea@mail.grokbot.com">Email support</a>.</p>
       </section>
     </main>
