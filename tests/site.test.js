@@ -118,6 +118,7 @@ test('pricing shows the Pro price, a waitlist form, and fetches no payment link'
   assert.match(js, /\/api\/waitlist/);
   assert.match(read('worker/index.mjs'), /'\/api\/payment-link': paymentLink/);
   assert.match(read('worker/index.mjs'), /'\/api\/waitlist': waitlistSignup/);
+  assert.match(read('worker/index.mjs'), /'\/api\/waitlist\/stats': waitlistStats/);
 });
 
 test('home has a waitlist form, setup guide CTA, no install link, and factual Pro schedules', () => {

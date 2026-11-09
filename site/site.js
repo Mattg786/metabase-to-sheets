@@ -135,7 +135,7 @@ async function submitWaitlist(event) {
       cache: 'no-store',
       credentials: 'omit',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, note, company, ref }),
+      body: JSON.stringify({ email, note, company, source: ref, ref }),
     });
     data = await response.json();
     if (!response.ok || !data.ok) {

@@ -27,6 +27,8 @@ function normalizeRef(value) {
   return cleaned.slice(0, REF_MAX);
 }
 
+const normalizeSource = normalizeRef;
+
 async function hashIp(ip) {
   if (!ip) return '';
   const bytes = new TextEncoder().encode(ip);
@@ -48,12 +50,13 @@ async function checkRateLimit(db, bucket, now = Date.now()) {
   return { ok: true };
 }
 
-async function addSignup(db, { email, note, ref, ipHash }) {
+async function addSignup(db, { email, note, source, ref, ipHash }) {
   const existing = await db.prepare('SELECT email FROM waitlist WHERE email = ?').bind(email).first();
   if (existing) return { ok: true, duplicate: true };
+  const origin = source || ref || '';
   await db.prepare(
     "INSERT INTO waitlist (email, note, ref, ip_hash, created_at) VALUES (?, ?, ?, ?, datetime('now'))",
-  ).bind(email, note || '', ref || '', ipHash || '').run();
+  ).bind(email, note || '', origin, ipHash || '').run();
   return { ok: true, duplicate: false };
 }
 
@@ -62,18 +65,38 @@ async function countSignups(db) {
   return Number(row && row.n) || 0;
 }
 
+async function listSignups(db, limit = 500) {
+  const capped = Math.min(Math.max(Number(limit) || 500, 1), 2000);
+  const result = await db.prepare(
+    'SELECT email, note, ref AS source, created_at FROM waitlist ORDER BY created_at DESC LIMIT ?',
+  ).bind(capped).all();
+  return (result && result.results) || [];
+}
+
+async function deleteSignup(db, email) {
+  const normalized = normalizeEmail(email);
+  if (!isValidEmail(normalized)) return { ok: false, deleted: 0 };
+  const result = await db.prepare('DELETE FROM waitlist WHERE email = ?').bind(normalized).run();
+  const deleted = Number(result && result.meta && result.meta.changes) || 0;
+  return { ok: true, deleted };
+}
+
 module.exports = {
   EMAIL_MAX,
   NOTE_MAX,
   REF_MAX,
+  SOURCE_MAX: REF_MAX,
   RATE_WINDOW_MS,
   RATE_MAX_HITS,
   normalizeEmail,
   isValidEmail,
   normalizeNote,
   normalizeRef,
+  normalizeSource,
   hashIp,
   checkRateLimit,
   addSignup,
   countSignups,
+  listSignups,
+  deleteSignup,
 };

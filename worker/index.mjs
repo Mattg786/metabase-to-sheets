@@ -14,11 +14,13 @@ const {
   normalizeEmail,
   isValidEmail,
   normalizeNote,
-  normalizeRef,
+  normalizeSource,
   hashIp,
   checkRateLimit,
   addSignup,
   countSignups,
+  listSignups,
+  deleteSignup,
 } = waitlist;
 
 const MAX_JSON_BYTES = 16 * 1024;
@@ -188,6 +190,13 @@ function clientIp(request) {
   return forwarded.split(',')[0].trim();
 }
 
+function adminAuthorized(request, env) {
+  const expected = env.WAITLIST_ADMIN_TOKEN;
+  if (!expected) return false;
+  const header = request.headers.get('x-waitlist-admin') || '';
+  return Boolean(header) && timingSafeEqual(header, expected);
+}
+
 async function waitlistSignup(request, env) {
   if (request.method !== 'POST') return methodNotAllowed('POST');
   if (!env.DB) return json({ ok: false, reason: 'waitlist not configured' }, 503);
@@ -205,15 +214,16 @@ async function waitlistSignup(request, env) {
   if (!isValidEmail(email)) {
     return json({ ok: false, reason: 'Enter a valid email address.' }, 400);
   }
+  const url = new URL(request.url);
   const note = normalizeNote(body.note);
-  const ref = normalizeRef(body.ref);
+  const source = normalizeSource(body.source || body.ref || url.searchParams.get('ref') || '');
   const ipHash = await hashIp(clientIp(request));
   const rate = await checkRateLimit(env.DB, ipHash || `email:${email}`);
   if (!rate.ok) {
     return json({ ok: false, reason: 'Too many signups from this connection. Try again in an hour.' }, 429);
   }
   try {
-    const result = await addSignup(env.DB, { email, note, ref, ipHash });
+    const result = await addSignup(env.DB, { email, note, source, ipHash });
     if (result.duplicate) {
       return json({ ok: true, duplicate: true, message: 'You are already on the list. We will email you when it launches.' });
     }
@@ -223,22 +233,37 @@ async function waitlistSignup(request, env) {
   }
 }
 
-async function waitlistCount(request, env) {
-  if (request.method !== 'GET') return methodNotAllowed('GET');
+async function waitlistStats(request, env) {
+  if (request.method === 'DELETE') return waitlistDelete(request, env);
+  if (request.method !== 'GET') return methodNotAllowed('GET, DELETE');
   if (!env.DB) return json({ ok: false, reason: 'waitlist not configured' }, 503);
-  const expected = env.WAITLIST_ADMIN_TOKEN;
-  if (!expected) return json({ ok: false, reason: 'admin not configured' }, 503);
-  const auth = request.headers.get('authorization') || '';
-  const match = /^Bearer\s+(.+)$/i.exec(auth);
-  const token = match ? match[1].trim() : '';
-  if (!token || !timingSafeEqual(token, expected)) {
-    return json({ ok: false, reason: 'unauthorized' }, 401);
-  }
+  if (!env.WAITLIST_ADMIN_TOKEN) return json({ ok: false, reason: 'admin not configured' }, 503);
+  if (!adminAuthorized(request, env)) return json({ ok: false, reason: 'unauthorized' }, 401);
   try {
     const count = await countSignups(env.DB);
-    return json({ ok: true, count });
+    const signups = await listSignups(env.DB);
+    return json({ ok: true, count, signups });
   } catch {
-    return json({ ok: false, reason: 'count failed' }, 500);
+    return json({ ok: false, reason: 'stats failed' }, 500);
+  }
+}
+
+async function waitlistDelete(request, env) {
+  if (!env.DB) return json({ ok: false, reason: 'waitlist not configured' }, 503);
+  if (!env.WAITLIST_ADMIN_TOKEN) return json({ ok: false, reason: 'admin not configured' }, 503);
+  if (!adminAuthorized(request, env)) return json({ ok: false, reason: 'unauthorized' }, 401);
+  let body;
+  try {
+    body = await readJson(request);
+  } catch {
+    return json({ ok: false, reason: 'invalid request body' }, 400);
+  }
+  try {
+    const result = await deleteSignup(env.DB, body.email);
+    if (!result.ok) return json({ ok: false, reason: 'Enter a valid email address.' }, 400);
+    return json({ ok: true, deleted: result.deleted });
+  } catch {
+    return json({ ok: false, reason: 'delete failed' }, 500);
   }
 }
 
@@ -248,7 +273,7 @@ const apiRoutes = {
   '/api/payment-link': paymentLink,
   '/api/success-session': successSession,
   '/api/waitlist': waitlistSignup,
-  '/api/waitlist/count': waitlistCount,
+  '/api/waitlist/stats': waitlistStats,
 };
 
 async function fetchHandler(request, env) {
