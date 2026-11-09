@@ -2,6 +2,12 @@ name = "metabase-to-sheets"
 main = "worker/index.mjs"
 compatibility_date = "2026-11-09"
 
+[observability]
+enabled = true
+
+[observability.traces]
+enabled = true
+
 [assets]
 directory = "./site/"
 binding = "ASSETS"

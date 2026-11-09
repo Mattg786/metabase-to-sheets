@@ -26,6 +26,8 @@ Official Workers pricing and limits reviewed on 9 November 2026 state: Free dyna
 
 One Worker serves the static `site/` directory through Workers Static Assets. `run_worker_first = ["/api/*"]` sends only API paths to Worker code; matched assets stay asset-first. No account ID, token, custom host, remote binding, or secret value is embedded in the repository.
 
+Worker observability logs and traces are explicitly enabled in `wrangler.toml`; the default sampling rate is 100%. The handler adds no application logs and does not log request bodies, licence tokens, or secrets. Because only `/api/*` runs through Worker code, static asset requests remain asset-first and do not create Worker invocation logs or traces. On 9 November 2026, the Workers Free Logs allowance is 200,000 events per day with three-day retention. Cloudflare states that from 1 December 2026, Free observability includes 0.5 GB of ingestion per day and seven-day retention, with ingestion stopping at the daily limit. Recheck the current cap before deployment. These caps preserve the free boundary; they are not an allowance to exceed it.
+
 - `POST /api/licence`: checks the subscription encoded in the licence key, stored key metadata, active status, and configured Price. Unconfigured response is HTTP 503 with `active:false`, `plan:"free"`, and `reason:"licensing not configured"`.
 - `POST /api/webhook`: reads at most 512 KiB of raw bytes, verifies Stripe HMAC-SHA256 with Web Crypto and a five-minute timestamp tolerance, rejects malformed headers, and accepts any valid `v1` signature. It fulfils only the selected paid Checkout events and only after checking the configured Payment Link and Price.
 - `GET /api/payment-link`: exposes only a valid Stripe-hosted Payment Link URL.
@@ -36,7 +38,7 @@ The API uses Fetch and Web Crypto, not Node-only APIs. Licence fulfilment uses a
 
 ## Secrets and production preparation
 
-Only after the dedicated product Stripe account exists and the production host, product, Price, Payment Link, webhook, legal terms, and access have been approved, use Wrangler's prompt for each secret. Never pass a secret as a shell argument or write it to a file.
+Secret commands are not read-only preparation. Each `wrangler secret put` command stores a secret and deploys a new Worker version immediately. With several secrets, each command is a separate deployment and may leave the Worker partially configured until all required values are set. Do not run them until a Worker exists and there is separate parent approval for the secret writes and version deployments. The prompts are interactive; never pass a secret as a shell argument or write it to a file.
 
 ```sh
 npx wrangler secret put STRIPE_SECRET_KEY
@@ -72,7 +74,7 @@ Validation completed with Node.js `26.7.0`, npm `11.19.0`, and Wrangler `4.158.0
 
 These local checks do not prove remote CPU usage or account limits, live Stripe Checkout, production webhook delivery, or deployment behavior.
 
-After separate authorisation to deploy, first replace every placeholder URL and configure approved secrets, then run:
+After the production URLs are approved and replaced consistently, and after separate parent approval to create the initial Worker, run the identity check and deploy the Worker unconfigured. In this state, the licence endpoint returns the documented 503 response and payment routes remain unconfigured:
 
 ```sh
 npx wrangler whoami
@@ -80,4 +82,4 @@ npx wrangler deploy --dry-run
 npx wrangler deploy
 ```
 
-The dry run does not deploy. Deployment requires Cloudflare authentication and is not authorised by this handoff. Local checks do not prove remote CPU usage, Cloudflare account limits, production availability, Stripe checkout, Stripe webhook delivery, or live billing.
+The dry run does not deploy. The final command creates or updates a Worker version and is a deployment. After separate parent approval to write secrets and deploy each resulting version, and after the Stripe account, Price, Payment Link, webhook, legal terms, and access are approved, set the required secrets using the interactive commands above. `STRIPE_API_VERSION` remains optional. Deployment and secret writes are not authorised by this handoff. Local checks do not prove remote CPU usage, Cloudflare account limits, production availability, Stripe checkout, Stripe webhook delivery, or live billing.

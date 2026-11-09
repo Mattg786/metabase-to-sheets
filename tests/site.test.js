@@ -67,6 +67,9 @@ test('Workers Static Assets routes only API paths through the Worker', () => {
   assert.match(config, /directory = "\.\/site\/"/);
   assert.match(config, /binding = "ASSETS"/);
   assert.match(config, /run_worker_first = \["\/api\/\*"\]/);
+  assert.match(config, /\[observability\]\nenabled = true/);
+  assert.match(config, /\[observability\.traces\]\nenabled = true/);
+  assert.doesNotMatch(read('worker/index.mjs'), /console\./);
   assert.equal(fs.existsSync(path.join(root, 'vercel.json')), false);
   assert.equal(fs.existsSync(path.join(root, 'api')), false);
   assert.match(read('src/Lib.js'), /example-subdomain\.workers\.dev\/api\/licence/);
