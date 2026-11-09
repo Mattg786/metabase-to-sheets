@@ -1,0 +1,29 @@
+{
+  "version": 2,
+  "buildCommand": "npm run build:site",
+  "cleanUrls": true,
+  "rewrites": [
+    { "source": "/", "destination": "/site/index.html" },
+    { "source": "/privacy", "destination": "/site/privacy.html" },
+    { "source": "/terms", "destination": "/site/terms.html" },
+    { "source": "/support", "destination": "/site/support.html" },
+    { "source": "/pricing", "destination": "/site/pricing.html" },
+    { "source": "/success", "destination": "/site/success.html" },
+    { "source": "/styles.css", "destination": "/site/styles.css" },
+    { "source": "/site-config.js", "destination": "/site/site-config.js" },
+    { "source": "/site.js", "destination": "/site/site.js" },
+    { "source": "/assets/(.*)", "destination": "/site/assets/$1" },
+    { "source": "/sitemap.xml", "destination": "/site/sitemap.xml" },
+    { "source": "/robots.txt", "destination": "/site/robots.txt" }
+  ],
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        { "key": "X-Content-Type-Options", "value": "nosniff" },
+        { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" },
+        { "key": "Permissions-Policy", "value": "camera=(), microphone=(), geolocation=()" }
+      ]
+    }
+  ]
+}

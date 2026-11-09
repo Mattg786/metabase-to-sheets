@@ -163,6 +163,17 @@
       </label>
 
       <div class="field">
+        <label for="licence-key">Pro licence key</label>
+        <input id="licence-key" name="licenceKey" type="password" autocomplete="off" spellcheck="false" maxlength="160" />
+        <p id="licence-status" class="hint">Free plan. Manual sync and Daily are available.</p>
+      </div>
+
+      <label class="check hidden" id="remove-licence-row" for="remove-licence">
+        <input id="remove-licence" type="checkbox" />
+        <span>Remove saved licence key</span>
+      </label>
+
+      <div class="field">
         <label for="card-id">Question ID</label>
         <input id="card-id" name="cardId" type="text" inputmode="text" autocomplete="off" spellcheck="false" required aria-required="true" />
         <p class="hint">The number in the question URL. Example: 42 from /question/42.</p>
@@ -238,6 +249,8 @@
           baseUrl: fieldValue('base-url'),
           apiKey: fieldValue('api-key'),
           removeApiKey: byId('remove-key').checked,
+          licenceKey: fieldValue('licence-key'),
+          removeLicenceKey: byId('remove-licence').checked,
           cardId: fieldValue('card-id'),
           sheetName: fieldValue('sheet-name'),
           schedule: fieldValue('schedule')
@@ -261,6 +274,8 @@
         byId('card-id').value = state.cardId || '';
         byId('api-key').value = '';
         byId('remove-key').checked = false;
+        byId('licence-key').value = '';
+        byId('remove-licence').checked = false;
 
         var removeRow = byId('remove-key-row');
         if (state.hasApiKey) removeRow.classList.remove('hidden');
@@ -270,6 +285,14 @@
           ? 'A key is saved. Leave this blank to keep it.'
           : '';
         byId('api-key').placeholder = placeholder;
+
+        var removeLicenceRow = byId('remove-licence-row');
+        if (state.hasLicenceKey) removeLicenceRow.classList.remove('hidden');
+        else removeLicenceRow.classList.add('hidden');
+        byId('licence-key').placeholder = state.hasLicenceKey
+          ? 'A licence key is saved. Leave this blank to keep it.'
+          : '';
+        byId('licence-status').textContent = state.licenceStatus || 'Free plan. Manual sync and Daily are available.';
 
         var sheetOptions = (state.sheets || []).map(function (name) {
           return { value: name, label: name };
@@ -380,6 +403,9 @@
       });
       byId('api-key').addEventListener('input', function () {
         if (byId('api-key').value) byId('remove-key').checked = false;
+      });
+      byId('licence-key').addEventListener('input', function () {
+        if (byId('licence-key').value) byId('remove-licence').checked = false;
       });
 
       setBusy(true);

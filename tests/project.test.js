@@ -60,6 +60,8 @@ test('the sidebar does not render server text as HTML', () => {
   assert.match(html, /textContent/);
   assert.match(html, /id="api-key"/);
   assert.match(html, /type="password"/);
+  assert.match(html, /id="licence-key"/);
+  assert.match(html, /remove-licence/);
   assert.match(html, /Sync now/);
   assert.match(html, /Load questions/);
 });

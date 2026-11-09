@@ -4,9 +4,13 @@
   "private": true,
   "description": "Google Sheets Editor add-on that copies a Metabase question into the active spreadsheet.",
   "scripts": {
-    "test": "node --test"
+    "test": "node --test",
+    "build:site": "node scripts/build-site.js"
   },
   "engines": {
-    "node": ">=18"
+    "node": ">=20"
+  },
+  "dependencies": {
+    "stripe": "23.0.0"
   }
 }

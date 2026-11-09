@@ -12,6 +12,7 @@ const {
 } = require('./support/fakes');
 
 const API_KEY = 'mb_sync_test_key_123';
+const LICENCE_KEY = 'mts_sub_test_1234567890_abcdefghijklmnopqrstuvwxyz0123456789ABCDEFG';
 
 function harness(options) {
   const initial = options && options.initial;
@@ -32,10 +33,16 @@ function harness(options) {
     spreadsheet: createSpreadsheet([sheet, other], 'Results'),
     scriptApp,
     fetchCalls: [],
+    licenceFetchCalls: [],
     fetch(request) {
       services.fetchCalls.push(request);
       if (options && options.fetch) return options.fetch(request, services.fetchCalls.length);
       return { status: 200, body: '[]' };
+    },
+    fetchLicence(request) {
+      services.licenceFetchCalls.push(request);
+      if (options && options.licenceFetch) return options.licenceFetch(request, services);
+      return { status: 200, body: JSON.stringify({ active: true, plan: 'pro', reason: 'test Pro licence' }) };
     },
     clock() {
       clockCalls += 1;
@@ -51,6 +58,7 @@ function harness(options) {
     },
   };
   if (options && options.storedKey) services.store.setApiKey(options.storedKey);
+  if (options && options.storedLicence) services.store.setLicenceKey(options.storedLicence);
   return services;
 }
 
@@ -77,7 +85,7 @@ test('sync now writes the mocked json export and stores the key only in user pro
     },
   });
 
-  const result = lib.syncNowForUser(form({ schedule: 'hourly' }), services);
+  const result = lib.syncNowForUser(form({ schedule: 'hourly', licenceKey: LICENCE_KEY }), services);
   assert.equal(result.ok, true);
   assert.equal(result.message, 'Synced 2 rows.');
   assert.equal(result.state.hasApiKey, true);
@@ -279,7 +287,7 @@ test('sidebar state never returns the API key', () => {
 });
 
 test('save stores settings and replaces the previous schedule trigger', () => {
-  const services = harness({ existingTrigger: true, otherTrigger: true, storedKey: API_KEY });
+  const services = harness({ existingTrigger: true, otherTrigger: true, storedKey: API_KEY, storedLicence: LICENCE_KEY });
   const saved = lib.saveSettingsForUser(form({ apiKey: '', schedule: 'every_6_hours' }), services);
   assert.equal(saved.ok, true);
   assert.equal(saved.message, 'Saved.');
@@ -355,6 +363,7 @@ test('load questions calls the list endpoint and does not save a new key', () =>
 test('the scheduled sync uses the saved key and records a scrubbed error', () => {
   const services = harness({
     storedKey: API_KEY,
+    storedLicence: LICENCE_KEY,
     fetch() {
       return { status: 500, body: JSON.stringify({ error: 'boom ' + API_KEY }) };
     },
@@ -407,4 +416,108 @@ test('http URLs and missing sheets fail before any request', () => {
   const missing = lib.syncNowForUser(form({ sheetName: 'Missing' }), services);
   assert.match(missing.error, /not in this spreadsheet/);
   assert.equal(services.fetchCalls.length, 0);
+});
+
+test('free users can save Daily without a licence network call', () => {
+  const services = harness({
+    licenceFetch() {
+      throw new Error('licence server should not be called for Daily');
+    },
+  });
+  const result = lib.saveSettingsForUser(form({ schedule: 'daily' }), services);
+  assert.equal(result.ok, true);
+  assert.equal(result.state.licencePlan, 'free');
+  assert.equal(services.licenceFetchCalls.length, 0);
+  assert.equal(services.scriptApp.triggers()[0].spec.everyDays, 1);
+});
+
+test('restricted schedules fail before changing existing settings without Pro', () => {
+  const services = harness({ storedKey: API_KEY });
+  services.store.setConfig({
+    baseUrl: 'https://example.metabaseapp.com',
+    cardId: '42',
+    sheetName: 'Results',
+    schedule: 'daily',
+  });
+  const result = lib.saveSettingsForUser(form({ schedule: 'hourly', licenceKey: '' }), services);
+  assert.equal(result.ok, false);
+  assert.match(result.error, /active Pro licence/);
+  assert.equal(services.store.getConfig().schedule, 'daily');
+  assert.equal(services.store.getLicenceKey(), '');
+});
+
+test('an active licence is cached for 24 hours and licence changes discard old cache', () => {
+  const services = harness({ storedKey: API_KEY, storedLicence: LICENCE_KEY });
+  const first = lib.saveSettingsForUser(form({ schedule: 'hourly' }), services);
+  assert.equal(first.ok, true);
+  assert.equal(services.licenceFetchCalls.length, 1);
+
+  const second = lib.saveSettingsForUser(form({ schedule: 'hourly' }), services);
+  assert.equal(second.ok, true);
+  assert.equal(services.licenceFetchCalls.length, 1);
+
+  const changed = lib.saveSettingsForUser(form({
+    schedule: 'hourly',
+    licenceKey: 'mts_sub_changed_abcdefghijklmnopqrstuvwxyz0123456789ABCDEFG',
+  }), services);
+  assert.equal(changed.ok, true);
+  assert.equal(services.licenceFetchCalls.length, 2);
+  assert.notEqual(services.store.getLicenceKey(), LICENCE_KEY);
+});
+
+test('an explicit inactive response revokes Pro immediately', () => {
+  let active = true;
+  const services = harness({
+    storedKey: API_KEY,
+    storedLicence: LICENCE_KEY,
+    licenceFetch() {
+      return {
+        status: 200,
+        body: JSON.stringify({
+          active,
+          plan: active ? 'pro' : 'free',
+          reason: active ? 'active Pro subscription verified' : 'subscription is not active',
+        }),
+      };
+    },
+  });
+  assert.equal(lib.saveSettingsForUser(form({ schedule: 'hourly' }), services).ok, true);
+  active = false;
+  services.clock = () => new Date('2026-11-11T14:05:00.000Z');
+  const revoked = lib.saveSettingsForUser(form({ schedule: 'hourly' }), services);
+  assert.equal(revoked.ok, false);
+  assert.match(revoked.error, /active Pro licence/);
+});
+
+test('a stale active result permits one week of outage without extending the timestamp', () => {
+  const services = harness({
+    storedKey: API_KEY,
+    storedLicence: LICENCE_KEY,
+    licenceFetch() {
+      return { status: 0, body: '', networkError: true };
+    },
+    fetch() {
+      return { status: 200, body: JSON.stringify([{ Orders: 2 }]) };
+    },
+  });
+  services.store.setLicenceCache({
+    key: LICENCE_KEY,
+    checkedAtMs: Date.parse('2026-11-07T14:05:00.000Z'),
+    validActiveAtMs: Date.parse('2026-11-07T14:05:00.000Z'),
+    access: { active: true, plan: 'pro', reason: 'active Pro subscription verified' },
+  });
+  services.store.setConfig({
+    baseUrl: 'https://example.metabaseapp.com',
+    cardId: '42',
+    sheetName: 'Results',
+    schedule: 'hourly',
+  });
+  services.clock = () => new Date('2026-11-09T14:05:00.000Z');
+  const result = lib.runScheduledSyncForUser(services);
+  assert.equal(result.ok, true);
+  assert.equal(services.licenceFetchCalls.length, 1);
+  assert.equal(services.store.getLicenceCache().validActiveAtMs, Date.parse('2026-11-07T14:05:00.000Z'));
+
+  services.clock = () => new Date('2026-11-15T14:05:00.000Z');
+  assert.throws(() => lib.runScheduledSyncForUser(services), /could not be verified/);
 });

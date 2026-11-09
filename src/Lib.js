@@ -8,6 +8,8 @@
 
 var SCHEDULED_SYNC_HANDLER = 'runScheduledSync';
 var USER_API_KEY_PROPERTY = 'METABASE_API_KEY';
+var USER_LICENCE_KEY_PROPERTY = 'METABASE_LICENCE_KEY';
+var USER_LICENCE_CACHE_PROPERTY = 'METABASE_LICENCE_CACHE';
 var MAX_RESULT_ROWS = 100000;
 var MAX_RESULT_COLUMNS = 2000;
 var WRITE_CHUNK_ROWS = 1000;
@@ -34,6 +36,20 @@ var SCHEDULE_OPTIONS = [
   { id: 'every_6_hours', label: 'Every 6 hours' },
   { id: 'daily', label: 'Daily' }
 ];
+
+var LICENCE_CONFIG = {
+  endpoint: 'https://metabase-to-sheets.vercel.app/api/licence',
+  freeSavedSyncLimit: 1,
+  freeSchedule: 'daily',
+  proSchedule: 'hourly',
+  cacheMs: 24 * 60 * 60 * 1000,
+  fallbackMs: 7 * 24 * 60 * 60 * 1000
+};
+
+var PRO_SCHEDULES = {
+  hourly: true,
+  every_6_hours: true
+};
 
 function failure(message) {
   return { ok: false, error: message };
@@ -232,6 +248,15 @@ function validateSchedule(input) {
     }
   }
   return failure('Choose a schedule.');
+}
+
+function validateLicenceKey(input) {
+  var key = String(input == null ? '' : input).trim();
+  if (!key) return { ok: true, licenceKey: '' };
+  if (key.length > 160 || /[\s]/.test(key)) {
+    return failure('That licence key does not look valid.');
+  }
+  return { ok: true, licenceKey: key };
 }
 
 function scrubSecrets(text, secrets) {
@@ -746,6 +771,40 @@ function createStore(userProperties, documentProperties) {
       }
       userProperties.setProperty(USER_API_KEY_PROPERTY, apiKey);
     },
+    getLicenceKey: function () {
+      var value = userProperties.getProperty(USER_LICENCE_KEY_PROPERTY);
+      return value == null ? '' : String(value);
+    },
+    setLicenceKey: function (licenceKey) {
+      var current = this.getLicenceKey();
+      if (!licenceKey) {
+        userProperties.deleteProperty(USER_LICENCE_KEY_PROPERTY);
+        userProperties.deleteProperty(USER_LICENCE_CACHE_PROPERTY);
+        return;
+      }
+      if (current !== licenceKey) {
+        userProperties.deleteProperty(USER_LICENCE_CACHE_PROPERTY);
+      }
+      userProperties.setProperty(USER_LICENCE_KEY_PROPERTY, licenceKey);
+    },
+    getLicenceCache: function () {
+      var raw = userProperties.getProperty(USER_LICENCE_CACHE_PROPERTY);
+      if (!raw) return null;
+      try {
+        var parsed = JSON.parse(raw);
+        if (!parsed || parsed.key !== this.getLicenceKey()) return null;
+        return parsed;
+      } catch (error) {
+        return null;
+      }
+    },
+    setLicenceCache: function (cache) {
+      if (!cache) {
+        userProperties.deleteProperty(USER_LICENCE_CACHE_PROPERTY);
+        return;
+      }
+      userProperties.setProperty(USER_LICENCE_CACHE_PROPERTY, JSON.stringify(cache));
+    },
     getConfig: function () {
       var schedule = read(DOCUMENT_KEYS.schedule);
       return {
@@ -899,6 +958,8 @@ function activeSheetName(spreadsheet, names) {
 function buildSidebarState(services) {
   var config = services.store.getConfig();
   var names = sheetNames(services.spreadsheet, config.sheetName);
+  var licenceKey = services.store.getLicenceKey ? services.store.getLicenceKey() : '';
+  var licenceCache = services.store.getLicenceCache ? services.store.getLicenceCache() : null;
   return {
     ok: true,
     baseUrl: config.baseUrl,
@@ -907,6 +968,11 @@ function buildSidebarState(services) {
     activeSheetName: activeSheetName(services.spreadsheet, names),
     schedule: config.schedule || 'manual',
     hasApiKey: services.store.getApiKey() !== '',
+    hasLicenceKey: licenceKey !== '',
+    licencePlan: licenceCache && licenceCache.access && licenceCache.access.active ? 'pro' : 'free',
+    licenceStatus: licenceKey
+      ? (licenceCache && licenceCache.access ? licenceCache.access.reason : 'Licence not checked yet.')
+      : 'Free plan. Manual sync and Daily are available.',
     sheets: names,
     schedules: SCHEDULE_OPTIONS,
     lastSyncAt: config.lastSyncAt,
@@ -932,6 +998,150 @@ function callMetabase(services, request) {
     return services.fetch(request);
   } catch (error) {
     return { status: 0, body: '', networkError: true };
+  }
+}
+
+function licenceNow(services) {
+  var now = services.clock ? services.clock() : new Date();
+  return now instanceof Date ? now : new Date(now);
+}
+
+function licenceResponse(body) {
+  var parsed = body;
+  try {
+    if (typeof body === 'string') parsed = JSON.parse(body);
+  } catch (error) {
+    return null;
+  }
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return null;
+  if (typeof parsed.active !== 'boolean' || typeof parsed.plan !== 'string' || typeof parsed.reason !== 'string') {
+    return null;
+  }
+  if (parsed.active && parsed.plan !== 'pro') return null;
+  return {
+    active: parsed.active,
+    plan: parsed.active ? 'pro' : 'free',
+    reason: parsed.reason.slice(0, 180)
+  };
+}
+
+function freeLicenceAccess(reason) {
+  return {
+    active: false,
+    plan: 'free',
+    reason: reason || 'No Pro licence is saved. Manual sync and Daily are available.'
+  };
+}
+
+function licenceRequest(key) {
+  return {
+    url: LICENCE_CONFIG.endpoint,
+    method: 'post',
+    contentType: 'application/json',
+    payload: JSON.stringify({ key: key }),
+    followRedirects: false,
+    muteHttpExceptions: true,
+    validateHttpsCertificates: true
+  };
+}
+
+function getLicenceAccessForKey(key, services, options) {
+  var licenceKey = String(key || '');
+  if (!licenceKey) {
+    return { access: freeLicenceAccess(), cache: null };
+  }
+
+  var now = licenceNow(services);
+  var nowMs = now.getTime();
+  var cache = services.store.getLicenceCache ? services.store.getLicenceCache() : null;
+  if (cache && cache.key === licenceKey && Number.isFinite(cache.checkedAtMs)) {
+    if (nowMs >= cache.checkedAtMs && nowMs - cache.checkedAtMs < LICENCE_CONFIG.cacheMs) {
+      return { access: cache.access, cache: cache };
+    }
+  }
+
+  var response;
+  try {
+    response = services.fetchLicence
+      ? services.fetchLicence(licenceRequest(licenceKey))
+      : { status: 0, body: '', networkError: true };
+  } catch (error) {
+    response = { status: 0, body: '', networkError: true };
+  }
+
+  var checked = licenceResponse(response && response.body);
+  var shouldPersist = !options || options.persist !== false;
+  if (checked) {
+    var freshCache = {
+      key: licenceKey,
+      checkedAtMs: nowMs,
+      validActiveAtMs: checked.active ? nowMs : 0,
+      access: checked
+    };
+    if (shouldPersist && services.store.setLicenceCache) services.store.setLicenceCache(freshCache);
+    return { access: checked, cache: freshCache };
+  }
+
+  if (
+    cache && cache.key === licenceKey && cache.access && cache.access.active &&
+    Number.isFinite(cache.validActiveAtMs) && cache.validActiveAtMs > 0 &&
+    nowMs >= cache.validActiveAtMs && nowMs - cache.validActiveAtMs <= LICENCE_CONFIG.fallbackMs
+  ) {
+    return {
+      access: {
+        active: true,
+        plan: 'pro',
+        stale: true,
+        reason: 'The licence server is unreachable. Using the last valid Pro check temporarily.'
+      },
+      cache: cache
+    };
+  }
+
+  return {
+    access: {
+      active: false,
+      plan: 'free',
+      unavailable: true,
+      reason: 'The Pro licence could not be verified. Manual sync and Daily remain available.'
+    },
+    cache: cache
+  };
+}
+
+function scheduleNeedsPro(schedule) {
+  return Boolean(PRO_SCHEDULES[schedule]);
+}
+
+function checkScheduleLicence(schedule, licenceKey, services, options) {
+  if (!scheduleNeedsPro(schedule)) return { ok: true, access: freeLicenceAccess() };
+  var checked = getLicenceAccessForKey(licenceKey, services, options);
+  if (checked.access.active) return { ok: true, access: checked.access, cache: checked.cache };
+  var message = checked.access.unavailable
+    ? 'The Pro licence could not be verified, so the restricted schedule was not saved. Manual sync and Daily remain available.'
+    : 'Hourly and Every 6 hours require an active Pro licence. Manual sync and Daily remain available.';
+  return { ok: false, error: message, access: checked.access, cache: checked.cache };
+}
+
+function resolveLicenceKey(form, store) {
+  var typed = String(form.licenceKey == null ? '' : form.licenceKey).trim();
+  if (typed) {
+    var validated = validateLicenceKey(typed);
+    if (!validated.ok) return validated;
+    return { ok: true, licenceKey: validated.licenceKey, replace: true, remove: false };
+  }
+  if (form.removeLicenceKey) {
+    return { ok: true, licenceKey: '', replace: false, remove: true };
+  }
+  var stored = store.getLicenceKey ? store.getLicenceKey() : '';
+  return { ok: true, licenceKey: stored, replace: false, remove: false };
+}
+
+function commitLicenceKey(services, resolved, checked) {
+  if (!resolved.replace && !resolved.remove) return;
+  services.store.setLicenceKey(resolved.licenceKey);
+  if (checked && checked.cache && checked.access && checked.access.active && services.store.setLicenceCache) {
+    services.store.setLicenceCache(checked.cache);
   }
 }
 
@@ -999,10 +1209,33 @@ function saveSettingsForUser(form, services) {
   var validated = validateSettingsForm(form, services.spreadsheet);
   if (!validated.ok) return withState(services, validated);
 
+  var licence = resolveLicenceKey(form || {}, services.store);
+  if (!licence.ok) return withState(services, licence);
+
   var typed = String(form.apiKey == null ? '' : form.apiKey).trim();
+  var scheduleForCheck = form.removeApiKey && !typed ? 'manual' : validated.settings.schedule;
+  if (scheduleForCheck !== 'manual' && !typed && !services.store.getApiKey()) {
+    return withState(services, failure('Save an API key before turning on a schedule. The schedule runs as you, using your key.'));
+  }
+
+  var checkedLicence = checkScheduleLicence(
+    scheduleForCheck,
+    licence.licenceKey,
+    services,
+    { persist: !licence.replace && !licence.remove }
+  );
+  if (!checkedLicence.ok) return withState(services, failure(checkedLicence.error));
+
+  var validatedApiKey = null;
+  if (typed) {
+    validatedApiKey = validateApiKey(typed);
+    if (!validatedApiKey.ok) return withState(services, validatedApiKey);
+  }
+
   if (form.removeApiKey && !typed) {
     validated.settings.schedule = 'manual';
     services.store.setApiKey('');
+    commitLicenceKey(services, licence, checkedLicence);
     services.store.setConfig(validated.settings);
     applySchedule(services.scriptApp, 'manual');
     return withState(services, {
@@ -1011,16 +1244,13 @@ function saveSettingsForUser(form, services) {
     });
   }
 
-  if (typed) {
-    var validatedKey = validateApiKey(typed);
-    if (!validatedKey.ok) return withState(services, validatedKey);
-    services.store.setApiKey(validatedKey.apiKey);
-  }
+  if (validatedApiKey) services.store.setApiKey(validatedApiKey.apiKey);
 
   if (validated.settings.schedule !== 'manual' && !services.store.getApiKey()) {
     return withState(services, failure('Save an API key before turning on a schedule. The schedule runs as you, using your key.'));
   }
 
+  commitLicenceKey(services, licence, checkedLicence);
   services.store.setConfig(validated.settings);
   applySchedule(services.scriptApp, validated.settings.schedule);
   return withState(services, { ok: true, message: 'Saved.' });
@@ -1034,12 +1264,21 @@ function syncNowForUser(form, services) {
   var validated = validateSettingsForm(form, services.spreadsheet);
   if (!validated.ok) return withState(services, validated);
 
+  var licence = resolveLicenceKey(form || {}, services.store);
+  if (!licence.ok) return withState(services, licence);
   var hadStoredKey = services.store.getApiKey() !== '';
   var key = resolveApiKey(form, services.store);
   if (!key.ok) return withState(services, key);
   if (key.remove || !key.apiKey) {
     return withState(services, failure('Enter an API key before syncing.'));
   }
+  var checkedLicence = checkScheduleLicence(
+    validated.settings.schedule,
+    licence.licenceKey,
+    services,
+    { persist: !licence.replace && !licence.remove }
+  );
+  if (!checkedLicence.ok) return withState(services, failure(checkedLicence.error));
 
   var outcome = executeSync(validated.settings, validated.sheet, key.apiKey, services);
   if (outcome.ok && key.replace) {
@@ -1055,6 +1294,7 @@ function syncNowForUser(form, services) {
   if (!outcome.ok && !services.store.getApiKey()) {
     validated.settings.schedule = 'manual';
   }
+  if (outcome.ok) commitLicenceKey(services, licence, checkedLicence);
   services.store.setConfig(validated.settings);
   if (services.store.getApiKey()) {
     applySchedule(services.scriptApp, validated.settings.schedule);
@@ -1097,6 +1337,16 @@ function runScheduledSyncForUser(services) {
     var missingKey = 'The scheduled sync could not run because no API key is saved for this Google account.';
     services.store.setStatus({ lastError: missingKey });
     throw new Error(missingKey);
+  }
+
+  var checkedLicence = checkScheduleLicence(
+    config.schedule || 'manual',
+    services.store.getLicenceKey ? services.store.getLicenceKey() : '',
+    services
+  );
+  if (!checkedLicence.ok) {
+    services.store.setStatus({ lastError: checkedLicence.error });
+    throw new Error(checkedLicence.error);
   }
 
   var validated = validateSettingsForm({
@@ -1153,6 +1403,9 @@ function createGoogleServices() {
     fetch: function (request) {
       return fetchMetabase(UrlFetchApp, request);
     },
+    fetchLicence: function (request) {
+      return fetchMetabase(UrlFetchApp, request);
+    },
     clock: function () {
       return new Date();
     }
@@ -1163,6 +1416,9 @@ if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
     SCHEDULED_SYNC_HANDLER: SCHEDULED_SYNC_HANDLER,
     USER_API_KEY_PROPERTY: USER_API_KEY_PROPERTY,
+    USER_LICENCE_KEY_PROPERTY: USER_LICENCE_KEY_PROPERTY,
+    USER_LICENCE_CACHE_PROPERTY: USER_LICENCE_CACHE_PROPERTY,
+    LICENCE_CONFIG: LICENCE_CONFIG,
     DOCUMENT_KEYS: DOCUMENT_KEYS,
     SCHEDULE_OPTIONS: SCHEDULE_OPTIONS,
     MAX_RESULT_ROWS: MAX_RESULT_ROWS,
@@ -1173,6 +1429,7 @@ if (typeof module !== 'undefined' && module.exports) {
     validateBaseUrl: validateBaseUrl,
     parseCardId: parseCardId,
     validateApiKey: validateApiKey,
+    validateLicenceKey: validateLicenceKey,
     validateSchedule: validateSchedule,
     scrubSecrets: scrubSecrets,
     buildCardQueryRequest: buildCardQueryRequest,
@@ -1189,6 +1446,9 @@ if (typeof module !== 'undefined' && module.exports) {
     formatSyncTime: formatSyncTime,
     buildStatusLabel: buildStatusLabel,
     createStore: createStore,
+    getLicenceAccessForKey: getLicenceAccessForKey,
+    checkScheduleLicence: checkScheduleLicence,
+    resolveLicenceKey: resolveLicenceKey,
     applySchedule: applySchedule,
     buildSidebarState: buildSidebarState,
     saveSettingsForUser: saveSettingsForUser,
