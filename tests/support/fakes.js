@@ -9,6 +9,7 @@ function createMemorySheet(name, initialValues, options) {
   const numberFormats = Object.create(null);
   let setValueCalls = 0;
   let setNumberFormatCalls = 0;
+  const writeOps = [];
 
   function key(row, col) {
     return row + ':' + col;
@@ -17,7 +18,11 @@ function createMemorySheet(name, initialValues, options) {
   function writeValuesAt(row, col, values) {
     for (let r = 0; r < values.length; r += 1) {
       for (let c = 0; c < values[r].length; c += 1) {
-        const value = values[r][c];
+        let value = values[r][c];
+        // Apps Script/Sheets: a leading apostrophe forces literal text and is not stored.
+        if (typeof value === 'string' && value.charAt(0) === "'") {
+          value = value.slice(1);
+        }
         const id = key(row + r, col + c);
         if (value === '' || value == null) delete cells[id];
         else cells[id] = value;
@@ -80,6 +85,9 @@ function createMemorySheet(name, initialValues, options) {
     setNumberFormatCalls() {
       return setNumberFormatCalls;
     },
+    writeOps() {
+      return writeOps.slice();
+    },
     readNumberFormat(row, col) {
       const id = key(row, col);
       return Object.prototype.hasOwnProperty.call(numberFormats, id) ? numberFormats[id] : '';
@@ -121,6 +129,7 @@ function createMemorySheet(name, initialValues, options) {
         },
         setValues(values) {
           setValueCalls += 1;
+          writeOps.push({ op: 'setValues', row, col, values: values.map((line) => line.slice()) });
           if (!values || values.length !== numRows) {
             throw new Error('Range size does not match values.');
           }
@@ -134,6 +143,7 @@ function createMemorySheet(name, initialValues, options) {
         },
         setNumberFormat(format) {
           setNumberFormatCalls += 1;
+          writeOps.push({ op: 'setNumberFormat', row, col, numRows, numCols, format });
           for (let r = row; r < row + numRows; r += 1) {
             for (let c = col; c < col + numCols; c += 1) {
               numberFormats[key(r, c)] = format;

@@ -142,20 +142,27 @@ test('an empty export clears the previous rows and reports that', () => {
     fetch() { return { status: 200, body: '[]' }; },
   });
   services.store.setLastRange({ sheetId: 11, rows: 1, cols: 1 });
+  let dataRangeCalls = 0;
+  const original = services.sheet.getDataRange.bind(services.sheet);
+  services.sheet.getDataRange = () => {
+    dataRangeCalls += 1;
+    return original();
+  };
   // User text below the previous synced block must survive.
   const result = lib.syncNowForUser(form(), services);
   assert.equal(result.ok, true);
   assert.equal(result.message, 'The question returned no rows. The previous synced cells were cleared.');
   assert.equal(result.state.lastSyncLabel, 'Last sync: 9 Nov 2026, 14:05 UTC. 0 rows.');
   assert.deepEqual(services.sheet.readGrid(2, 1), [[''], ['note']]);
+  assert.equal(dataRangeCalls, 0);
 });
 
 test('401, 403, 404, and unreachable Metabase leave the sheet unchanged', () => {
   const cases = [
-    { status: 401, pattern: /\(401\)/ },
-    { status: 403, pattern: /\(403\)/ },
-    { status: 404, pattern: /\(404\)/ },
-    { status: 0, networkError: true, pattern: /could not be reached/ },
+    { status: 401, pattern: /\(401\)/, expectKeySuffix: true },
+    { status: 403, pattern: /\(403\)/, expectKeySuffix: false },
+    { status: 404, pattern: /\(404\)/, expectKeySuffix: false },
+    { status: 0, networkError: true, pattern: /could not be reached/, expectKeySuffix: false },
   ];
 
   for (const item of cases) {
@@ -170,12 +177,45 @@ test('401, 403, 404, and unreachable Metabase leave the sheet unchanged', () => 
     assert.equal(result.ok, false);
     assert.match(result.error, item.pattern);
     assert.equal(result.error.includes(API_KEY), false);
-    assert.match(result.error, /previous API key is still saved/);
+    if (item.expectKeySuffix) {
+      assert.match(result.error, /previous API key is still saved/);
+    } else {
+      assert.equal(result.error.includes('previous API key is still saved'), false);
+      assert.equal(result.error.includes('API key was not saved'), false);
+    }
     assert.deepEqual(services.sheet.readGrid(2, 2), [['Keep', 'me'], ['a', 'b']]);
     assert.equal(services.userProperties.getProperty(lib.USER_API_KEY_PROPERTY), 'mb_previous_key_999');
     assert.equal(secretIn(services.documentProperties.getProperties(), API_KEY), false);
     assert.equal(result.state.lastError.includes(API_KEY), false);
   }
+});
+
+test('a 404 with the stored key unchanged does not mention the previous API key', () => {
+  const services = harness({
+    initial: [['Keep']],
+    storedKey: 'mb_previous_key_999',
+    fetch() {
+      return { status: 404, body: '' };
+    },
+  });
+  const result = lib.syncNowForUser(form({ apiKey: '' }), services);
+  assert.equal(result.ok, false);
+  assert.match(result.error, /\(404\)/);
+  assert.equal(result.error.includes('previous API key is still saved'), false);
+  assert.equal(services.userProperties.getProperty(lib.USER_API_KEY_PROPERTY), 'mb_previous_key_999');
+});
+
+test('a rejected new key with no prior key says the API key was not saved', () => {
+  const services = harness({
+    fetch() {
+      return { status: 401, body: '' };
+    },
+  });
+  const result = lib.syncNowForUser(form(), services);
+  assert.equal(result.ok, false);
+  assert.match(result.error, /\(401\)/);
+  assert.match(result.error, /API key was not saved/);
+  assert.equal(services.userProperties.getProperty(lib.USER_API_KEY_PROPERTY), null);
 });
 
 test('a failed sync keeps the previous last sync time and a success clears the error', () => {

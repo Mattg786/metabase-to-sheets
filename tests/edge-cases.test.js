@@ -18,7 +18,7 @@ test('string cells that look like formulas stay literal text with @ number forma
     rows: [
       ['=1+1', '00123'],
       ['+hello', '00456'],
-      ['-world', 'text'],
+      ['-456', 'text'],
       ['@mention', 'ok'],
     ],
   });
@@ -26,12 +26,71 @@ test('string cells that look like formulas stay literal text with @ number forma
     ['Label', 'Code'],
     ['=1+1', '00123'],
     ['+hello', '00456'],
-    ['-world', 'text'],
+    ['-456', 'text'],
     ['@mention', 'ok'],
   ]);
   assert.equal(sheet.readNumberFormat(2, 1), '@');
   assert.equal(sheet.readNumberFormat(2, 2), '@');
   assert.equal(sheet.readNumberFormat(1, 1), '@');
+
+  const ops = sheet.writeOps();
+  const firstFormat = ops.findIndex((item) => item.op === 'setNumberFormat');
+  const firstWrite = ops.findIndex((item) => item.op === 'setValues');
+  assert.notEqual(firstFormat, -1);
+  assert.notEqual(firstWrite, -1);
+  assert.ok(firstFormat < firstWrite, 'text format must be applied before setValues');
+
+  const written = ops.find((item) => item.op === 'setValues');
+  assert.equal(written.values[1][0], "'=1+1");
+  assert.equal(written.values[2][0], "'+hello");
+  assert.equal(written.values[3][0], "'-456");
+  assert.equal(written.values[4][0], "'@mention");
+});
+
+test('mixed-type columns keep string cells literal and numbers as numbers', () => {
+  const sheet = createMemorySheet('Results', [], { sheetId: 23 });
+  writeTable(sheet, {
+    headers: ['Value'],
+    rows: [
+      ['=1+1'],
+      [2],
+      ['-456'],
+      ['00123'],
+    ],
+  });
+  assert.deepEqual(sheet.readGrid(5, 1), [
+    ['Value'],
+    ['=1+1'],
+    [2],
+    ['-456'],
+    ['00123'],
+  ]);
+  assert.equal(typeof sheet.readGrid(5, 1)[2][0], 'number');
+  assert.equal(sheet.readNumberFormat(2, 1), '@');
+  assert.equal(sheet.readNumberFormat(3, 1), '');
+  assert.equal(sheet.readNumberFormat(4, 1), '@');
+  assert.equal(sheet.readNumberFormat(5, 1), '@');
+
+  const ops = sheet.writeOps();
+  const firstFormat = ops.findIndex((item) => item.op === 'setNumberFormat');
+  const firstWrite = ops.findIndex((item) => item.op === 'setValues');
+  assert.ok(firstFormat < firstWrite);
+  const written = ops.find((item) => item.op === 'setValues');
+  assert.equal(written.values[1][0], "'=1+1");
+  assert.equal(written.values[2][0], 2);
+  assert.equal(written.values[3][0], "'-456");
+  assert.equal(written.values[4][0], '00123');
+});
+
+test('needsLiteralPrefix covers = + - @ only', () => {
+  assert.equal(lib.needsLiteralPrefix('=1+1'), true);
+  assert.equal(lib.needsLiteralPrefix('+hello'), true);
+  assert.equal(lib.needsLiteralPrefix('-456'), true);
+  assert.equal(lib.needsLiteralPrefix('@x'), true);
+  assert.equal(lib.needsLiteralPrefix('00123'), false);
+  assert.equal(lib.needsLiteralPrefix(''), false);
+  assert.equal(lib.toLiteralSheetValue('=1+1'), "'=1+1");
+  assert.equal(lib.toLiteralSheetValue('plain'), 'plain');
 });
 
 test('number columns stay numbers and are not forced to text format', () => {
@@ -76,6 +135,30 @@ test('a later sync does not wipe cells typed outside the synced block', () => {
     ['only', ''],
     ['user note', ''],
   ]);
+});
+
+test('a zero-row sync clears only the last synced block and never calls getDataRange', () => {
+  const sheet = createMemorySheet('Results', [
+    ['City', 'Total'],
+    ['London', 3],
+    ['keep below', 'keep'],
+  ], { sheetId: 31, maxColumns: 10 });
+  let dataRangeCalls = 0;
+  const original = sheet.getDataRange.bind(sheet);
+  sheet.getDataRange = () => {
+    dataRangeCalls += 1;
+    return original();
+  };
+  const written = writeTable(sheet, { headers: [], rows: [] }, {
+    previousRange: { sheetId: 31, rows: 2, cols: 2 },
+  });
+  assert.deepEqual(written.range, { sheetId: 31, rows: 0, cols: 0 });
+  assert.deepEqual(sheet.readGrid(3, 2), [
+    ['', ''],
+    ['', ''],
+    ['keep below', 'keep'],
+  ]);
+  assert.equal(dataRangeCalls, 0);
 });
 
 test('refuses a sync that would push the spreadsheet past the cell budget', () => {
