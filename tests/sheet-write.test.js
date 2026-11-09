@@ -6,12 +6,16 @@ const { writeTable } = require('../src/Lib');
 const { createMemorySheet } = require('./support/fakes');
 
 test('writes headers and rows from the result and no extra columns', () => {
-  const sheet = createMemorySheet('Results', []);
+  const sheet = createMemorySheet('Results', [], { sheetId: 9 });
   const written = writeTable(sheet, {
     headers: ['City', 'Total'],
     rows: [['London', 3], ['York', 4]],
   });
-  assert.deepEqual(written, { rowsWritten: 2, columnsWritten: 2 });
+  assert.deepEqual(written, {
+    rowsWritten: 2,
+    columnsWritten: 2,
+    range: { sheetId: 9, rows: 3, cols: 2 },
+  });
   assert.deepEqual(sheet.readGrid(2, 3), [
     ['City', 'Total', ''],
     ['London', 3, ''],
@@ -19,17 +23,17 @@ test('writes headers and rows from the result and no extra columns', () => {
   assert.equal(sheet.readGrid(2, 2)[0].includes('Last sync'), false);
 });
 
-test('a smaller sync clears leftover rows and columns', () => {
+test('a smaller sync clears leftover rows and columns from the previous synced block', () => {
   const sheet = createMemorySheet('Results', [
     ['H1', 'H2', 'H3'],
     ['a', 'b', 'c'],
     ['d', 'e', 'f'],
     ['g', 'h', 'i'],
-  ]);
+  ], { sheetId: 7 });
   writeTable(sheet, {
     headers: ['H1', 'H2'],
     rows: [['x', 'y']],
-  });
+  }, { previousRange: { sheetId: 7, rows: 4, cols: 3 } });
   assert.deepEqual(sheet.readGrid(4, 3), [
     ['H1', 'H2', ''],
     ['x', 'y', ''],
@@ -42,9 +46,15 @@ test('an empty result clears the previous sync and does not invent headers', () 
   const sheet = createMemorySheet('Results', [
     ['City', 'Total'],
     ['London', 3],
-  ]);
-  const written = writeTable(sheet, { headers: [], rows: [] });
-  assert.deepEqual(written, { rowsWritten: 0, columnsWritten: 0 });
+  ], { sheetId: 3 });
+  const written = writeTable(sheet, { headers: [], rows: [] }, {
+    previousRange: { sheetId: 3, rows: 2, cols: 2 },
+  });
+  assert.deepEqual(written, {
+    rowsWritten: 0,
+    columnsWritten: 0,
+    range: { sheetId: 3, rows: 0, cols: 0 },
+  });
   assert.deepEqual(sheet.readGrid(2, 2), [
     ['', ''],
     ['', ''],

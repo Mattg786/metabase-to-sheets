@@ -15,8 +15,8 @@ const API_KEY = 'mb_sync_test_key_123';
 
 function harness(options) {
   const initial = options && options.initial;
-  const sheet = createMemorySheet('Results', initial || []);
-  const other = createMemorySheet('Notes', [['leave me']]);
+  const sheet = createMemorySheet('Results', initial || [], { sheetId: 11 });
+  const other = createMemorySheet('Notes', [['leave me']], { sheetId: 12 });
   const userProperties = createProperties();
   const documentProperties = createProperties();
   const scriptApp = createScriptApp();
@@ -106,7 +106,7 @@ test('sync now writes the mocked json export and stores the key only in user pro
   assert.equal(services.scriptApp.triggers()[0].spec.everyHours, 1);
 });
 
-test('a later smaller result replaces the sheet and clears leftover rows', () => {
+test('a later smaller result clears only the previous synced block', () => {
   const services = harness({
     fetch(request, count) {
       if (count === 1) {
@@ -123,27 +123,31 @@ test('a later smaller result replaces the sheet and clears leftover rows', () =>
   });
 
   assert.equal(lib.syncNowForUser(form(), services).ok, true);
+  // User note typed outside the synced block must survive the next sync.
+  services.sheet.getRange(1, 5, 1, 1).setValues([['keep me']]);
   const second = lib.syncNowForUser(form({ apiKey: '' }), services);
   assert.equal(second.ok, true);
   assert.equal(second.message, 'Synced 1 row.');
-  assert.deepEqual(services.sheet.readGrid(3, 3), [
-    ['A', '', ''],
-    ['only', '', ''],
-    ['', '', ''],
+  assert.deepEqual(services.sheet.readGrid(3, 5), [
+    ['A', '', '', '', 'keep me'],
+    ['only', '', '', '', ''],
+    ['', '', '', '', ''],
   ]);
   assert.equal(services.userProperties.getProperty(lib.USER_API_KEY_PROPERTY), API_KEY);
 });
 
 test('an empty export clears the previous rows and reports that', () => {
   const services = harness({
-    initial: [['Old']],
+    initial: [['Old'], ['note']],
     fetch() { return { status: 200, body: '[]' }; },
   });
+  services.store.setLastRange({ sheetId: 11, rows: 1, cols: 1 });
+  // User text below the previous synced block must survive.
   const result = lib.syncNowForUser(form(), services);
   assert.equal(result.ok, true);
-  assert.equal(result.message, 'The question returned no rows. The sheet was cleared.');
+  assert.equal(result.message, 'The question returned no rows. The previous synced cells were cleared.');
   assert.equal(result.state.lastSyncLabel, 'Last sync: 9 Nov 2026, 14:05 UTC. 0 rows.');
-  assert.deepEqual(services.sheet.readGrid(1, 1), [['']]);
+  assert.deepEqual(services.sheet.readGrid(2, 1), [[''], ['note']]);
 });
 
 test('401, 403, 404, and unreachable Metabase leave the sheet unchanged', () => {
