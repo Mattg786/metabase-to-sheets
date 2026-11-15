@@ -1,0 +1,16 @@
+# Runs on Matt's Mac mini self-hosted runner. Until a runner is registered for this repo, jobs will sit queued; that is expected.
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: [self-hosted, macOS]
+    steps:
+      - uses: actions/checkout@v4
+      - run: node -v
+      - run: npm ci
+      - run: npm test
