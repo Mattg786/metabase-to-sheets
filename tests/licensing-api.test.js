@@ -126,7 +126,7 @@ test('checkout verification requires paid matching session, link, price, and sub
   assert.equal(pending.pending, true);
 
   const wrongLink = await verifyCheckoutSession({
-    stripe: checkoutStripe(session, subscription(id, key), 'https://buy.stripe.com/other'),
+    stripe: checkoutStripe(session, subscription(id, key), 'https://buy.stripe.com/test_other'),
     sessionId: session.id,
     env,
   });
