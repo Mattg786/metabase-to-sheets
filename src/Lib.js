@@ -1116,6 +1116,20 @@ function licenceRequest(key) {
   };
 }
 
+function licenceStatusOk(status) {
+  var code = Number(status);
+  return code >= 200 && code < 300;
+}
+
+// Outage: do not cache, and do not move validActiveAtMs. The 7-day fallback reads the old value.
+// 503 "licensing not configured" is a real revocation, not an outage.
+function licenceCheckUnreachable(response, checked) {
+  if (!checked) return true;
+  if (checked.reason === 'licence check failed') return true;
+  if (checked.reason === 'licensing not configured') return false;
+  return !licenceStatusOk(response && response.status);
+}
+
 function getLicenceAccessForKey(key, services, options) {
   var licenceKey = String(key || '');
   if (!licenceKey) {
@@ -1142,7 +1156,7 @@ function getLicenceAccessForKey(key, services, options) {
 
   var checked = licenceResponse(response && response.body);
   var shouldPersist = !options || options.persist !== false;
-  if (checked) {
+  if (checked && !licenceCheckUnreachable(response, checked)) {
     var freshCache = {
       key: licenceKey,
       checkedAtMs: nowMs,

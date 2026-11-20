@@ -128,7 +128,8 @@ async function licence(request, env) {
   const key = typeof body.key === 'string' ? body.key : '';
   if (key.length > MAX_LICENCE_LENGTH) return json({ active: false, plan: 'free', reason: 'invalid licence key' }, 400);
   const result = await checkLicence({ key, stripe: getStripeClient(env), env });
-  return json(result, result.reason === 'licensing not configured' ? 503 : 200);
+  const unavailable = result.reason === 'licensing not configured' || result.reason === 'licence check failed';
+  return json(result, unavailable ? 503 : 200);
 }
 
 async function paymentLink(request, env) {
@@ -179,7 +180,11 @@ async function webhook(request, env) {
     return json({ received: false, reason: 'invalid webhook event' }, 400);
   }
   try {
-    return json(await handleWebhookEvent({ stripe: getStripeClient(env), event, env }));
+    const result = await handleWebhookEvent({ stripe: getStripeClient(env), event, env });
+    if (result && result.retry) {
+      return json({ received: false, fulfilled: false, reason: result.reason }, 500);
+    }
+    return json(result);
   } catch {
     return json({ received: false, reason: 'webhook fulfilment failed' }, 500);
   }

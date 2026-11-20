@@ -38,6 +38,10 @@ function rejected(reason) {
   return { verified: false, pending: false, reason };
 }
 
+function transient(reason) {
+  return { verified: false, pending: false, transient: true, reason };
+}
+
 async function retrieveSubscription(stripe, id) {
   return stripe.subscriptions.retrieve(id, { expand: ['items.data.price'] });
 }
@@ -81,7 +85,7 @@ async function verifyCheckoutSession({ stripe, sessionId, env }) {
     }
     return { verified: true, pending: false, session, subscription, paymentLink };
   } catch (error) {
-    return rejected('checkout session could not be verified');
+    return transient('checkout session could not be verified');
   }
 }
 
