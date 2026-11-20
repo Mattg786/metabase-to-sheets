@@ -19,7 +19,11 @@ async function handleWebhookEvent({ stripe, event, env, randomBytes }) {
     env,
   });
   if (!verification.verified) {
-    return { received: true, fulfilled: false, reason: verification.reason };
+    const outcome = { received: true, fulfilled: false, reason: verification.reason };
+    // Pending here means the event said paid but Stripe still has the session unpaid.
+    // A thrown Stripe call is transient. Both must be retried. A definite reject is not.
+    if (verification.pending || verification.transient) outcome.retry = true;
+    return outcome;
   }
 
   const licenceKey = await fulfilCheckoutSession({ stripe, verification, randomBytes });

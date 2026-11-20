@@ -103,7 +103,7 @@ test('licence endpoint fails closed when Stripe is unavailable', async (t) => {
   global.fetch = stripeFetch({}, true);
   t.after(() => { global.fetch = oldFetch; });
   const { response, body } = await call('/api/licence', 'POST', { key: licenceKey() });
-  assert.equal(response.status, 200);
+  assert.equal(response.status, 503);
   assert.deepEqual(body, { active: false, plan: 'free', reason: 'licence check failed' });
 });
 
