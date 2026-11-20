@@ -88,6 +88,7 @@ test('explicit inactive results revoke at once, including 503 licensing not conf
     { status: 200, body: jsonBody('subscription is not active'), reason: 'subscription is not active' },
     { status: 200, body: jsonBody('subscription is not for this product'), reason: 'subscription is not for this product' },
     { status: 200, body: jsonBody('invalid licence key'), reason: 'invalid licence key' },
+    { status: 400, body: jsonBody('invalid licence key'), reason: 'invalid licence key' },
     { status: 503, body: jsonBody('licensing not configured'), reason: 'licensing not configured' },
   ];
 

@@ -1116,9 +1116,11 @@ function licenceRequest(key) {
   };
 }
 
+// A parsed 2xx or 4xx answer is a definite result (4xx is a bad or refused key).
+// No status or a 5xx is an outage.
 function licenceStatusOk(status) {
   var code = Number(status);
-  return code >= 200 && code < 300;
+  return code >= 200 && code < 500;
 }
 
 // Outage: do not cache, and do not move validActiveAtMs. The 7-day fallback reads the old value.
